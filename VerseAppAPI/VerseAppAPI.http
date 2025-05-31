@@ -1,0 +1,6 @@
+@VerseAppAPI_HostAddress = http://localhost:5128
+
+GET {{VerseAppAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

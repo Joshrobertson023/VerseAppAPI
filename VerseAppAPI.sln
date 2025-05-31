@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35931.197 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VerseAppAPI", "VerseAppAPI\VerseAppAPI.csproj", "{2594D94E-0425-4206-A659-6FB73045167D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2594D94E-0425-4206-A659-6FB73045167D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2594D94E-0425-4206-A659-6FB73045167D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2594D94E-0425-4206-A659-6FB73045167D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2594D94E-0425-4206-A659-6FB73045167D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C53A97B5-CBC9-4EC8-BC41-D12CAC6F2B9A}
+	EndGlobalSection
+EndGlobal
