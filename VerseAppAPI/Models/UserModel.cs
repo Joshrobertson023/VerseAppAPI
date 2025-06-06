@@ -31,14 +31,22 @@ namespace VerseAppAPI.Models
         private int followVerseOfTheDay;
         private int visibility;
 
-        public UserModel(string username, string firstName, string lastName, string? email, string hashedPassword, string status = "DEFAULT")
+        public UserModel(string username, string firstName, string lastName, string? email, string? securityQuestion, string? securityAnswer, string hashedPassword, string token, string status = "DEFAULT")
         {
             Username = username.Trim();
             FirstName = firstName.Trim();
             LastName = lastName.Trim();
-            if (email != "EMPTY")
+            if (!string.IsNullOrEmpty(email))
+            {
                 Email = email.Trim();
+            }
+            else
+            {
+                SecurityQuestion = securityQuestion.Trim();
+                SecurityAnswer = securityAnswer.Trim();
+            }
             PasswordHash = hashedPassword;
+            AuthToken = token;
             Status = status;
         }
 
@@ -55,6 +63,9 @@ namespace VerseAppAPI.Models
                 id = value;
             }
         }
+        public string AuthToken { get; set; }
+        public string? SecurityQuestion { get; set; }
+        public string? SecurityAnswer { get; set; }
         public string Username
         {
             get { return username; }
@@ -148,16 +159,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (string.IsNullOrEmpty(description))
-                    throw new NullReferenceException("Error getting Description: description is null or empty.");
-                else
                     return description;
             }
             set
             {
-                if (value.Length > DescriptionMax)
-                    throw new ArgumentException($"description is too long. Please enter a description under {DescriptionMax + 1} characters.");
-
                 description = value;
             }
         }
@@ -166,16 +171,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (string.IsNullOrEmpty(lastReadPassage))
-                    throw new NullReferenceException("Error getting lastReadPassage: lastReadPassage was null or empty.");
-                else
                     return lastReadPassage;
             }
             set
             {
-                if (value.Length > LastReadPassageMax)
-                    throw new ArgumentException($"Critical error setting LastReadPassage: value is too long.");
-
                 lastReadPassage = value;
             }
         }
@@ -184,16 +183,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (currentReadingPlan == null)
-                    throw new NullReferenceException("Error getting currentReadingPlan: value was null.");
-                else
                     return currentReadingPlan;
             }
             set
             {
-                if (value < 0 || value > 9999999999)
-                    throw new ArgumentException("Critical error setting currentReadingPlan: Value was outside the allowed range.");
-
                 currentReadingPlan = value;
             }
         }
@@ -201,16 +194,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (lastPracticedVerse == null)
-                    throw new NullReferenceException("Error getting lastPracticedVerse: value was null.");
-                else
                     return lastPracticedVerse;
             }
             set
             {
-                if (value < 0 || value > 9999999999)
-                    throw new ArgumentException("Critical error setting lastPracticedVerse: Value was outside the allowed range.");
-
                 lastPracticedVerse = value;
             }
         }
@@ -219,9 +206,6 @@ namespace VerseAppAPI.Models
             get { return isDeleted; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting isDeleted: value was outside the allowed range.");
-
                 isDeleted = value;
             }
         }
@@ -229,16 +213,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (string.IsNullOrEmpty(reasonDeleted))
-                    throw new NullReferenceException("Error getting reasonDeleted: reasonDeleted was null or empty.");
-                else
                     return reasonDeleted;
             }
             set
             {
-                if (value.Length > ReasonDeletedMax)
-                    throw new ArgumentException($"Critical error setting reasonDeleted: value is too long.");
-
                 reasonDeleted = value;
             }
         }
@@ -248,9 +226,6 @@ namespace VerseAppAPI.Models
             get { return appTheme; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting appTheme: value was outside the allowed range.");
-
                 appTheme = value;
             }
         }
@@ -259,9 +234,6 @@ namespace VerseAppAPI.Models
             get { return showVersesSaved; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting showVersesSaved: value was outside the allowed range.");
-
                 showVersesSaved = value;
             }
         }
@@ -270,9 +242,6 @@ namespace VerseAppAPI.Models
             get { return showPopularHighlights; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting showPopularHighlights: value was outside the allowed range.");
-
                 showPopularHighlights = value;
             }
         }
@@ -281,9 +250,6 @@ namespace VerseAppAPI.Models
             get { return flagged; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting flagged: value was outside the allowed range.");
-
                 flagged = value;
             }
         }
@@ -292,9 +258,6 @@ namespace VerseAppAPI.Models
             get { return allowPushNotifications; }
             set
             {
-                if (value < 0 || value > PushNotificationTypes)
-                    throw new ArgumentException("Critical error setting allowPushNotifications: value was outside the allowed range.");
-
                 allowPushNotifications = value;
             }
         }
@@ -304,9 +267,6 @@ namespace VerseAppAPI.Models
             get { return followVerseOfTheDay; }
             set
             {
-                if (value < 0 || value > 1)
-                    throw new ArgumentException("Critical error setting followVerseOfTheDay: value was outside the allowed range.");
-
                 followVerseOfTheDay = value;
             }
         }
@@ -315,9 +275,6 @@ namespace VerseAppAPI.Models
             get { return visibility; }
             set
             {
-                if (value < 0 || value > VisibilityTypes)
-                    throw new ArgumentException("Critical error setting visibility: value was outside the allowed range.");
-
                 visibility = value;
             }
         }

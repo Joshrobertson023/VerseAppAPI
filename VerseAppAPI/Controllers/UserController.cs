@@ -6,6 +6,7 @@ using Oracle.ManagedDataAccess.Client;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Diagnostics;
 
 namespace VerseAppAPI.Controllers
 {
@@ -13,10 +14,14 @@ namespace VerseAppAPI.Controllers
     [Route("api/[controller]")]
     public class UserController : ControllerBase
     {
-        private UserControllerDB userDB;
+        private UserControllerDB userDB; // To call Oracle commands
 
-        public UserController(UserControllerDB UserDB)
+        private IConfiguration _config;
+        private string connectionString;
+        public UserController(IConfiguration config, UserControllerDB UserDB)
         {
+            _config = config;
+            connectionString = _config.GetConnectionString("Default");
             userDB = UserDB;
         }
 
@@ -34,80 +39,130 @@ namespace VerseAppAPI.Controllers
             }
         }
 
-        [HttpGet("currentUser")]
-        [Authorize]
-        public async Task<IActionResult> GetCurrentUser()
+        [HttpGet("warmup")]
+        public async Task<IActionResult> Warmup()
         {
-            string username = User.Identity.Name;
-            if (string.IsNullOrEmpty(username))
-                return Unauthorized(new { message = "Unable to authorize user." });
-
-            UserModel currentUser = await GetUserDBAsync(User.Identity.Name);
-            if (currentUser == null)
-                return NotFound(new { message = "User not found." });
-
-            return Ok(currentUser);
+            try
+            {
+                await userDB.Warmup();
+                return Ok(userDB.usernames);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to warmup ", error = ex.Message });
+            }
         }
 
-
-
-
-
-
-
-
-
-
-
-        public async Task<UserModel> GetUserDBAsync(string username)
+        [HttpPost("passwordhash")]
+        public async Task<IActionResult> GetPasswordHash([FromBody] string username)
         {
-            UserModel currentUser = new UserModel();
-
-            string query = @"SELECT * FROM USERS WHERE USERNAME = :username";
-
-            OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("username", username));
-            OracleDataReader reader = await cmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
+            try
             {
-                currentUser.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                currentUser.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
-                currentUser.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
-                if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
-                    currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
-                currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
-                currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
-                currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
-                currentUser.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
-                if (!reader.IsDBNull(reader.GetOrdinal("DESCRIPTION")))
-                    currentUser.Description = reader.GetString(reader.GetOrdinal("DESCRIPTION"));
-                if (!reader.IsDBNull(reader.GetOrdinal("LAST_READ_PASSAGE")))
-                    currentUser.LastReadPassage = reader.GetString(reader.GetOrdinal("LAST_READ_PASSAGE"));
-                if (!reader.IsDBNull(reader.GetOrdinal("CURRENT_READING_PLAN")))
-                    currentUser.CurrentReadingPlan = reader.GetInt32(reader.GetOrdinal("CURRENT_READING_PLAN"));
-                if (!reader.IsDBNull(reader.GetOrdinal("LAST_PRACTICED_VERSE_ID")))
-                    currentUser.LastPracticedVerse = reader.GetInt32(reader.GetOrdinal("LAST_PRACTICED_VERSE_ID"));
-                currentUser.IsDeleted = reader.GetInt32(reader.GetOrdinal("IS_DELETED"));
-                if (!reader.IsDBNull(reader.GetOrdinal("REASON_DELETED")))
-                    currentUser.ReasonDeleted = reader.GetString(reader.GetOrdinal("REASON_DELETED"));
-                currentUser.AppTheme = reader.GetInt32(reader.GetOrdinal("APP_THEME"));
-                currentUser.ShowVersesSaved = reader.GetInt32(reader.GetOrdinal("SHOW_VERSES_SAVED"));
-                currentUser.ShowPopularHighlights = reader.GetInt32(reader.GetOrdinal("SHOW_POPULAR_HIGHLIGHTS"));
-                currentUser.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED"));
-                currentUser.AllowPushNotifications = reader.GetInt32(reader.GetOrdinal("ALLOW_PUSH_NOTIFICATIONS"));
-                currentUser.FollowVerseOfTheDay = reader.GetInt32(reader.GetOrdinal("FOLLOW_VERSE_OF_THE_DAY"));
-                currentUser.Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY"));
+                string passwordHash = await userDB.GetPasswordHashDBAsync(username);
+                if (passwordHash == null)
+                    return NotFound(new { message = "Cannot find user" });
+                return new JsonResult(passwordHash);
             }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Database failed", detail = ex.Message });
+            }
+        }
 
-            conn.Close();
-            conn.Dispose();
+        [HttpPost("getuser")]
+        public async Task<IActionResult> GetUser([FromBody] string username)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                UserModel returnUser = new UserModel();
+                returnUser = await userDB.GetUserDBAsync(username);
+                sw.Stop();
+                Console.WriteLine($"GetUser total took {sw.ElapsedMilliseconds} ms");
+                return Ok(returnUser);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get user ", error = ex.Message });
+            }
+        }
 
-            return currentUser;
+        [HttpPost("adduser")]
+        public async Task<IActionResult> AddUser([FromBody] UserModel newUser)
+        {
+            try
+            {
+                await userDB.AddUserDBAsync(newUser);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to add user ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("loginwithtoken")]
+        public async Task<IActionResult> LoginWithToken([FromBody] string token)
+        {
+            UserModel returnUser = new UserModel();
+
+            returnUser = await userDB.GetUserByTokenDBAsync(token);
+
+            return Ok(returnUser);
+        }
+
+        [HttpPost("securityquestion")]
+        public async Task<IActionResult> GetSecurityQuestion([FromBody] string username)
+        {
+            return Ok(await userDB.GetSecurityQuestionDBAsync(username));
+        }
+
+        [HttpPost("putresettoken")]
+        public async Task<IActionResult> PutResetToken([FromBody] RecoveryInfo recovery)
+        {
+            await userDB.ResetUserPasswordDBAsync(recovery.Username, recovery.Token);
+            return NoContent();
+        }
+
+        [HttpPost("verifytoken")]
+        public async Task<IActionResult> VerifyToken([FromBody] RecoveryInfo recovery)
+        {
+            return Ok(await userDB.VerifyTokenDBAsync(recovery.Username, recovery.Token));
+        }
+
+        [HttpPost("updatepassword")]
+        public async Task<IActionResult> UpdateUserPassword([FromBody] RecoveryInfo recovery)
+        {
+            await userDB.UpdateUserPasswordDBAsync(recovery.Id, recovery.Token);
+            return NoContent();
+        }
+
+        [HttpPost("getidfromusername")]
+        public async Task<IActionResult> GetIdFromUsername([FromBody] string username)
+        {
+            try
+            {
+                return Ok(await userDB.GetIdFromUsername(username));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get userId ", error = ex.Message });
+            }
+        }
+
+        [HttpGet("getrecoveryinfo")]
+        public async Task<IActionResult> GetRecoveryInfo()
+        {
+            try
+            {
+                List<RecoveryInfo> recovery = new List<RecoveryInfo>();
+                recovery = await userDB.GetRecoveryInfoDBAsync();
+                return Ok(recovery);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get recovery info ", error = ex.Message });
+            }
         }
     }
 }
