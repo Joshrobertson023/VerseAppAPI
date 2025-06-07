@@ -92,10 +92,6 @@ namespace VerseAppAPI.Controllers
                 currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
-                if (!reader.IsDBNull(reader.GetOrdinal("SECURITY_QUESTION")))
-                    currentUser.SecurityQuestion = reader.GetString(reader.GetOrdinal("SECURITY_QUESTION"));
-                if (!reader.IsDBNull(reader.GetOrdinal("SECURITY_ANSWER")))
-                    currentUser.SecurityAnswer = reader.GetString(reader.GetOrdinal("SECURITY_ANSWER"));
                 currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
                 currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
                 currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
@@ -143,10 +139,6 @@ namespace VerseAppAPI.Controllers
                 currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
-                if (!reader.IsDBNull(reader.GetOrdinal("SECURITY_QUESTION")))
-                    currentUser.SecurityQuestion = reader.GetString(reader.GetOrdinal("SECURITY_QUESTION"));
-                if (!reader.IsDBNull(reader.GetOrdinal("SECURITY_ANSWER")))
-                    currentUser.SecurityAnswer = reader.GetString(reader.GetOrdinal("SECURITY_ANSWER"));
                 currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
                 currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
                 currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
@@ -172,8 +164,8 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddUserDBAsync(UserModel user)
         {
-            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, SECURITY_QUESTION, SECURITY_ANSWER, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN)
-                             VALUES (:username, :firstName, :lastName, :email, :securityQuestion, :securityAnswer, :userPassword, :token, :status, SYSDATE, SYSDATE)";
+            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN)
+                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE)";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
@@ -184,8 +176,6 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("firstName", user.FirstName));
             cmd.Parameters.Add(new OracleParameter("lastName", user.LastName));
             cmd.Parameters.Add(new OracleParameter("email", user.Email != null ? user.Email : DBNull.Value));
-            cmd.Parameters.Add(new OracleParameter("securityQuestion", user.SecurityQuestion != null ? user.SecurityQuestion : DBNull.Value));
-            cmd.Parameters.Add(new OracleParameter("securityAnswer", user.SecurityAnswer != null ? user.SecurityAnswer : DBNull.Value));
             cmd.Parameters.Add(new OracleParameter("userPassword", user.PasswordHash));
             cmd.Parameters.Add(new OracleParameter("token", user.AuthToken));
             cmd.Parameters.Add(new OracleParameter("status", user.Status));
@@ -224,64 +214,29 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
         }
 
-        public async Task GetAllUsernamesDBAsync()
+        public async Task<bool> CheckUsernameExists(string username)
         {
-            usernames = new List<string>();
-            string query = @"SELECT USERNAME FROM USERS";
-            int retries = 0;
+            string query = @"SELECT 1 FROM USERS WHERE USERNAME = :username";
 
-            while (true)
+            using var conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            var cmd = new OracleCommand(query, conn)
             {
-                try
-                {
-                    using var conn = new OracleConnection(connectionString);
-                    await conn.OpenAsync();
+                CommandTimeout = 30
+            };
+            cmd.Parameters.Add(new OracleParameter("username", username));
 
-                    using var cmd = new OracleCommand(query, conn)
-                    {
-                        CommandTimeout = 60  // raise to 60s
-                    };
-
-                    using var reader = await cmd.ExecuteReaderAsync();
-                    while (await reader.ReadAsync())
-                    {
-                        usernames.Add(reader.GetString(reader.GetOrdinal("USERNAME")));
-                    }
-                    // If we got this far, it succeeded—break out of retry loop:
-                    break;
-                }
-                catch (Oracle.ManagedDataAccess.Client.OracleException oraEx)
-                {
-                    // If it’s a timeout (ORA-01013) or some known transient error, retry:
-                    if (oraEx.Number == 1013 /* ORA-01013: user requested cancel of current operation */
-                     || oraEx.Number == 12170 /* ORA-12170: TNS: Connect timeout */
-                     || oraEx.Number == 25408 /* ORA-25408: could not send message to service (listener) - timeout */
-                     || retries < 2)  // try up to 2 additional times
-                    {
-                        retries++;
-                        await Task.Delay(1000 * retries); // exponential backoff (1s, then 2s)
-                        usernames.Clear();                // clear any partial results
-                        continue;
-                    }
-
-                    // Otherwise, bubble up the exception so your controller will catch it:
-                    throw new Exception($"Oracle error fetching usernames (after {retries + 1} tries): {oraEx.Message}", oraEx);
-                }
-                catch (Exception ex)
-                {
-                    // For any other exception, just rethrow
-                    throw new Exception($"Unexpected error in GetAllUsernamesDBAsync: {ex.Message}", ex);
-                }
-            }
+            await using var reader = await cmd.ExecuteReaderAsync();
+            bool exists = await reader.ReadAsync();
+            return exists;
         }
 
 
         public async Task<List<RecoveryInfo>> GetRecoveryInfoDBAsync()
         {
             List<RecoveryInfo> recoveryInfo = new List<RecoveryInfo>();
-            RecoveryInfo _recoveryInfo = new RecoveryInfo();
 
-            string query = @"SELECT USER_ID, FIRST_NAME, LAST_NAME, USERNAME, HASHED_PASSWORD, EMAIL FROM USERS";
+            string query = @"SELECT USER_ID, FIRST_NAME, LAST_NAME, USERNAME, HASHED_PASSWORD, EMAIL FROM USERS WHERE IS_DELETED = 0";
 
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
@@ -291,15 +246,18 @@ namespace VerseAppAPI.Controllers
 
             while (await reader.ReadAsync())
             {
-                _recoveryInfo.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                _recoveryInfo.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                _recoveryInfo.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
-                _recoveryInfo.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
-                _recoveryInfo.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
-                if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
-                    _recoveryInfo.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
-
-                recoveryInfo.Add(_recoveryInfo);
+                var rec = new RecoveryInfo
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("USER_ID")),
+                    FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME")),
+                    LastName = reader.GetString(reader.GetOrdinal("LAST_NAME")),
+                    Username = reader.GetString(reader.GetOrdinal("USERNAME")),
+                    PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD")),
+                    Email = reader.IsDBNull(reader.GetOrdinal("EMAIL"))
+                                   ? null
+                                   : reader.GetString(reader.GetOrdinal("EMAIL"))
+                };
+                recoveryInfo.Add(rec);
             }
 
             conn.Close();

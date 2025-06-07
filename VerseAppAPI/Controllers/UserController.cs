@@ -1,12 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
-using VerseAppAPI.Models;
-using Oracle.ManagedDataAccess.Client;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
+using Oracle.ManagedDataAccess.Client;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Net.Mail;
+using System.Security.Claims;
+using System.Text;
+using VerseAppAPI.Models;
 
 namespace VerseAppAPI.Controllers
 {
@@ -25,13 +27,13 @@ namespace VerseAppAPI.Controllers
             userDB = UserDB;
         }
 
-        [HttpGet("usernames")]
-        public async Task<IActionResult> GetUsernames()
+        [HttpPost("usernames")]
+        public async Task<IActionResult> CheckForUsername([FromBody] string username)
         {
             try
             {
-                await userDB.GetAllUsernamesDBAsync();
-                return Ok(userDB.usernames);
+                bool result = await userDB.CheckUsernameExists(username);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -111,12 +113,6 @@ namespace VerseAppAPI.Controllers
             return Ok(returnUser);
         }
 
-        [HttpPost("securityquestion")]
-        public async Task<IActionResult> GetSecurityQuestion([FromBody] string username)
-        {
-            return Ok(await userDB.GetSecurityQuestionDBAsync(username));
-        }
-
         [HttpPost("putresettoken")]
         public async Task<IActionResult> PutResetToken([FromBody] RecoveryInfo recovery)
         {
@@ -125,15 +121,15 @@ namespace VerseAppAPI.Controllers
         }
 
         [HttpPost("verifytoken")]
-        public async Task<IActionResult> VerifyToken([FromBody] RecoveryInfo recovery)
+        public async Task<IActionResult> VerifyToken([FromBody] ResetPassword reset)
         {
-            return Ok(await userDB.VerifyTokenDBAsync(recovery.Username, recovery.Token));
+            return Ok(await userDB.VerifyTokenDBAsync(reset.Username, reset.Token));
         }
 
         [HttpPost("updatepassword")]
-        public async Task<IActionResult> UpdateUserPassword([FromBody] RecoveryInfo recovery)
+        public async Task<IActionResult> UpdateUserPassword([FromBody] ResetPassword reset)
         {
-            await userDB.UpdateUserPasswordDBAsync(recovery.Id, recovery.Token);
+            await userDB.UpdateUserPasswordDBAsync(reset.Id, reset.PasswordHash);
             return NoContent();
         }
 
@@ -162,6 +158,46 @@ namespace VerseAppAPI.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Failed to get recovery info ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("sendresetlink")]
+        public async Task<IActionResult> SendResetLink([FromBody] ResetPassword reset)
+        {
+            try
+            {
+                if (reset == null)
+                    return BadRequest("User not found.");
+
+                var token = Guid.NewGuid().ToString();
+                var resetUrl = $"https://localhost:7025/authentication/forgot/resetpassword/{token}/{reset.Username}";
+
+                var emailMessage = new MailMessage("therealjoshrobertson@gmail.com", reset.Email)
+                {
+                    Subject = "Reset Your Password",
+                    Body = $"Click the link below to reset your password:\n\n{resetUrl}\n\nThis link expires in one hour."
+                };
+
+                var smtp = new SmtpClient("smtp.gmail.com", 587)
+                {
+                    EnableSsl = true,
+                    Credentials = new NetworkCredential("therealjoshrobertson@gmail.com", "tofp kaki lkuv nffh")
+                };
+
+                await smtp.SendMailAsync(emailMessage);
+
+                await userDB.ResetUserPasswordDBAsync(reset.Username, token);
+                return Ok();
+            }
+            catch (SmtpException smtpEx)
+            {
+                Console.Write(smtpEx.ToString());
+                return StatusCode(500, new { message = "Failed to send reset link via email", error = smtpEx.Message });
+            }
+            catch (Exception ex)
+            {
+                Console.Write(ex.ToString());
+                return StatusCode(500, new { message = "Failed to send reset link ", error = ex.Message });
             }
         }
     }

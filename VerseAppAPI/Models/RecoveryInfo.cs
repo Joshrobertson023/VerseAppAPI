@@ -21,9 +21,6 @@ namespace VerseAppAPI.Models
             get { return username; }
             set
             {
-                if (value.Length > UsernameMax)
-                    throw new ArgumentException($"Username is too long. Please enter a username under {UsernameMax + 1} characters.");
-
                 username = value;
             }
         }
@@ -33,9 +30,6 @@ namespace VerseAppAPI.Models
             get { return firstName; }
             set
             {
-                if (value.Length > NameMax)
-                    throw new ArgumentException($"First name is too long. Please enter a name under {NameMax + 1} characters.");
-
                 firstName = value.ToLower();
             }
         }
@@ -45,9 +39,6 @@ namespace VerseAppAPI.Models
             get { return lastName; }
             set
             {
-                if (value.Length > NameMax)
-                    throw new ArgumentException($"Last name is too long. Please enter a name under {NameMax + 1} characters");
-
                 lastName = value.ToLower();
             }
         }
@@ -55,6 +46,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
+                if (firstName.Length == 0 && lastName.Length == 0)
+                {
+                    return "No Name";
+                }
                 return (firstName.Substring(0, 1).ToUpper() + firstName.Substring(1) + " "
                         + lastName.Substring(0, 1).ToUpper() + lastName.Substring(1));
             }
@@ -63,16 +58,10 @@ namespace VerseAppAPI.Models
         {
             get
             {
-                if (string.IsNullOrEmpty(email))
-                    throw new NullReferenceException("Error getting Email: email is null or empty.");
-                else
                     return email;
             }
             set
             {
-                if (value.Length > EmailMax)
-                    throw new ArgumentException($"Email is too long. Please enter an email under {EmailMax + 1} characters.");
-
                 email = value;
             }
         }
@@ -82,9 +71,6 @@ namespace VerseAppAPI.Models
             get { return passwordHash; }
             set
             {
-                if (value.Length > PasswordMax)
-                    throw new ArgumentException($"Critical error setting PasswordHash: PasswordHash is too long.");
-
                 passwordHash = value;
             }
         }
