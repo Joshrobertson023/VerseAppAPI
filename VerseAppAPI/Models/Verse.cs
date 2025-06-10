@@ -8,7 +8,7 @@ namespace VerseAppAPI.Models
 {
     public class Verse
     {
-        public int Id { get; set; }
+        public int VerseId { get; set; }
         public string Reference { get; set; }
         public string Text { get; set; }
         public int UsersSaved { get; set; }

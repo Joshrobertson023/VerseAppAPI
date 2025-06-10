@@ -109,9 +109,6 @@ namespace VerseAppAPI.Controllers
                 currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
             }
 
-            cmdSw.Stop();
-            Console.WriteLine($"Command.ExecuteReaderAsync + read took {cmdSw.ElapsedMilliseconds} ms");
-
             conn.Close();
             conn.Dispose();
 

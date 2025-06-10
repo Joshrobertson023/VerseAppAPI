@@ -1,4 +1,5 @@
 ﻿using Oracle.ManagedDataAccess.Client;
+using System.Reflection.PortableExecutable;
 using VerseAppAPI.Models;
 using static System.Reflection.Metadata.BlobBuilder;
 
@@ -33,6 +34,51 @@ namespace VerseAppAPI.Controllers
             "1 Peter", "2 Peter", "1 John", "2 John", "3 John",
             "Jude", "Revelation"
         };
+
+        public async Task<UserVerse> GetUserVerseFromReference(Reference reference)
+        {
+            UserVerse userVerse = new();
+            List<string> references = new();
+
+            foreach (var _verse in reference.Verses)
+            {
+                references.Add(reference.Book + " " + reference.Chapter.ToString() + ":" + _verse.ToString());
+            }
+
+            List<Verse> resultVerses = new();
+            foreach (var _reference in references)
+            {
+                resultVerses.Add(await GetVerse(_reference));
+            }
+            userVerse.Verses = resultVerses;
+
+            return userVerse;
+        }
+
+        public async Task<Verse> GetVerse(string reference)
+        {
+            Verse verse = new();
+            string query = @"SELECT * FROM VERSES WHERE VERSE_REFERENCE = :reference";
+
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("reference", reference));
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                verse.VerseId = reader.GetInt32(reader.GetOrdinal("VERSE_ID"));
+                verse.Reference = reader.GetString(reader.GetOrdinal("VERSE_REFERENCE"));
+                verse.UsersSaved = reader.GetInt32(reader.GetOrdinal("USERS_SAVED_VERSE"));
+                verse.UsersMemorized = reader.GetInt32(reader.GetOrdinal("USERS_MEMORIZED"));
+                verse.Text = reader.GetString(reader.GetOrdinal("TEXT"));
+            }
+
+            conn.Close();
+            conn.Dispose();
+            return verse;
+        }
 
         public async Task AddAllVersesOfBibleDBAsync()
         {

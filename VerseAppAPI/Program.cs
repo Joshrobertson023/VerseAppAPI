@@ -14,9 +14,15 @@ using static System.Reflection.Metadata.BlobBuilder;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1) Configure EF Core + Identity:
 builder.Services.AddDbContext<ApplicationDBContext>(options =>
-    options.UseOracle(builder.Configuration.GetConnectionString("Default")));
+    options.UseOracle(
+        builder.Configuration.GetConnectionString("Default"),
+        oracleOpts =>
+        {
+            oracleOpts.CommandTimeout(2);
+        }
+    ));
+
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
@@ -53,6 +59,7 @@ builder.Services.AddAuthentication(options =>
 
 // 3) Register your controllers and any scoped services:
 builder.Services.AddScoped<UserControllerDB>();
+builder.Services.AddScoped<VerseControllerDB>();
 builder.Services.AddControllers();
 
 // 4) Configure Swagger (if in Development):
@@ -111,63 +118,61 @@ app.Lifetime.ApplicationStarted.Register(() =>
             logger.LogWarning(ex, "Warm-up All encountered an exception.");
         }
     });
-    Task.Run(async () =>
-    {
-        try
-        {
-            string query = @"
-                            INSERT INTO VERSES 
-                            (VERSE_REFERENCE, USERS_SAVED_VERSE, USERS_MEMORIZED, TEXT)
-                            VALUES 
-                            (:reference, :saved, :highlighted, :text)";
+    //Task.Run(async () =>
+    //{
+    //    try
+    //    {
+    //        string query = @"
+    //                        SELECT * FROM VERSES WHERE VERSE_REFERENCE = :reference";
 
-            using OracleConnection conn = new OracleConnection(config.GetConnectionString("Default"));
-            await conn.OpenAsync();
+    //        using OracleConnection conn = new OracleConnection(config.GetConnectionString("Default"));
+    //        await conn.OpenAsync();
 
-            using OracleCommand cmd = new OracleCommand(query, conn);
+    //        using OracleCommand cmd = new OracleCommand(query, conn);
 
-            string reference = "";
-            int saved = 0;
-            int highlighted = 0;
-            string text = "";
+    //        string reference = "";
+    //        int saved = 0;
+    //        int highlighted = 0;
+    //        string text = "";
 
-            var referenceParameter = new OracleParameter("reference", reference);
-            var savedParameter = new OracleParameter("saved", saved);
-            var highlightedParameter = new OracleParameter("highlighted", highlighted);
-            var textParameter = new OracleParameter("text", text);
-            cmd.Parameters.Add(referenceParameter);
-            cmd.Parameters.Add(savedParameter);
-            cmd.Parameters.Add(highlightedParameter);
-            cmd.Parameters.Add(textParameter);
+    //        var referenceParameter = new OracleParameter("reference", reference);
+    //        var savedParameter = new OracleParameter("saved", saved);
+    //        var highlightedParameter = new OracleParameter("highlighted", highlighted);
+    //        var textParameter = new OracleParameter("text", text);
+    //        cmd.Parameters.Add(referenceParameter);
+    //        cmd.Parameters.Add(savedParameter);
+    //        cmd.Parameters.Add(highlightedParameter);
+    //        cmd.Parameters.Add(textParameter);
 
-            for (int i = 0; i < VerseControllerDB.books.Count(); i++)
-            {
-                for (int j = 0; j <= BibleStructure.GetNumberChapters(VerseControllerDB.books[i]); j++)
-                {
-                    for (int k = 0; k < BibleStructure.GetNumberVerses(VerseControllerDB.books[i], j); k++)
-                    {
-                        List<int> verse = new List<int>() { k + 1 };
-                        referenceParameter.Value = ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse);
-                        savedParameter.Value = 0;
-                        highlightedParameter.Value = 0;
-                        VerseModel verseModel = await BibleAPI.GetAPIVerseAsync(ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse), "kjv");
-                        textParameter.Value = verseModel.Text;
+    //        //for (int i = 10; i < 18; i++)
+    //        for (int i = 0; i < 14; i++)
+    //        {
+    //            for (int j = 14; j <= BibleStructure.GetNumberChapters(VerseControllerDB.books[i]); j++)
+    //            {
+    //                for (int k = 0; k < BibleStructure.GetNumberVerses(VerseControllerDB.books[i], j); k++)
+    //                {
+    //                    List<int> verse = new List<int>() { k + 1 };
+    //                    referenceParameter.Value = ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse);
+    //                    savedParameter.Value = 0;
+    //                    highlightedParameter.Value = 0;
+    //                    VerseModel verseModel = await BibleAPI.GetAPIVerseAsync(ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse), "kjv");
+    //                    textParameter.Value = verseModel.Text;
 
-                        await cmd.ExecuteNonQueryAsync();
-                        logger.LogInformation("Inserted verse: {Reference}", referenceParameter.Value);
-                        await Task.Delay(2500);
-                    }
-                }
-            }
+    //                    await cmd.ExecuteNonQueryAsync();
+    //                    logger.LogInformation("Inserted verse: {Reference}", referenceParameter.Value);
+    //                    await Task.Delay(2500);
+    //                }
+    //            }
+    //        }
 
-            conn.Close();
-            conn.Dispose();
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Error inserting all verses.");
-        }
-    });
+    //        conn.Close();
+    //        conn.Dispose();
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        logger.LogWarning(ex, "Error inserting all verses.");
+    //    }
+    //});
 
 });
 
