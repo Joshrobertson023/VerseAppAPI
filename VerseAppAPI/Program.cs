@@ -140,7 +140,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
             cmd.Parameters.Add(highlightedParameter);
             cmd.Parameters.Add(textParameter);
 
-            for (int i = 0; i < VerseControllerDB.books.Count(); i++)
+            for (int i = 14; i < 18; i++)
             {
                 for (int j = 0; j <= BibleStructure.GetNumberChapters(VerseControllerDB.books[i]); j++)
                 {
