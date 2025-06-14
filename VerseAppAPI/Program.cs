@@ -118,61 +118,17 @@ app.Lifetime.ApplicationStarted.Register(() =>
             logger.LogWarning(ex, "Warm-up All encountered an exception.");
         }
     });
-    //Task.Run(async () =>
-    //{
-    //    try
-    //    {
-    //        string query = @"
-    //                        SELECT * FROM VERSES WHERE VERSE_REFERENCE = :reference";
+    Task.Run(async () =>
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VerseControllerDB>();
 
-    //        using OracleConnection conn = new OracleConnection(config.GetConnectionString("Default"));
-    //        await conn.OpenAsync();
+        // pick whatever sample keywords you like here:
+        var keywords = new List<string> { "lord", "just" };
 
-    //        using OracleCommand cmd = new OracleCommand(query, conn);
-
-    //        string reference = "";
-    //        int saved = 0;
-    //        int highlighted = 0;
-    //        string text = "";
-
-    //        var referenceParameter = new OracleParameter("reference", reference);
-    //        var savedParameter = new OracleParameter("saved", saved);
-    //        var highlightedParameter = new OracleParameter("highlighted", highlighted);
-    //        var textParameter = new OracleParameter("text", text);
-    //        cmd.Parameters.Add(referenceParameter);
-    //        cmd.Parameters.Add(savedParameter);
-    //        cmd.Parameters.Add(highlightedParameter);
-    //        cmd.Parameters.Add(textParameter);
-
-    //        //for (int i = 10; i < 18; i++)
-    //        for (int i = 0; i < 14; i++)
-    //        {
-    //            for (int j = 14; j <= BibleStructure.GetNumberChapters(VerseControllerDB.books[i]); j++)
-    //            {
-    //                for (int k = 0; k < BibleStructure.GetNumberVerses(VerseControllerDB.books[i], j); k++)
-    //                {
-    //                    List<int> verse = new List<int>() { k + 1 };
-    //                    referenceParameter.Value = ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse);
-    //                    savedParameter.Value = 0;
-    //                    highlightedParameter.Value = 0;
-    //                    VerseModel verseModel = await BibleAPI.GetAPIVerseAsync(ReferenceParse.ConvertToReferenceString(VerseControllerDB.books[i], j, verse), "kjv");
-    //                    textParameter.Value = verseModel.Text;
-
-    //                    await cmd.ExecuteNonQueryAsync();
-    //                    logger.LogInformation("Inserted verse: {Reference}", referenceParameter.Value);
-    //                    await Task.Delay(2500);
-    //                }
-    //            }
-    //        }
-
-    //        conn.Close();
-    //        conn.Dispose();
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        logger.LogWarning(ex, "Error inserting all verses.");
-    //    }
-    //});
+        // this will invoke all your Console.WriteLine()s inside GetUserVerseByKeywords
+        await db.GetUserVerseByKeywords(keywords);
+    });
 
 });
 

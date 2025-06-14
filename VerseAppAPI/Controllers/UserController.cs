@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using DBAccessLibrary.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Oracle.ManagedDataAccess.Client;
@@ -25,20 +26,6 @@ namespace VerseAppAPI.Controllers
             _config = config;
             connectionString = _config.GetConnectionString("Default");
             userDB = UserDB;
-        }
-
-        [HttpPost("usernames")]
-        public async Task<IActionResult> CheckForUsername([FromBody] string username)
-        {
-            try
-            {
-                bool result = await userDB.CheckUsernameExists(username);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Failed to get usernames ", error = ex.Message });
-            }
         }
 
         [HttpGet("warmup")]
@@ -198,6 +185,132 @@ namespace VerseAppAPI.Controllers
             {
                 Console.Write(ex.ToString());
                 return StatusCode(500, new { message = "Failed to send reset link ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("getusernotifications")]
+        public async Task<IActionResult> GetUserNotifications([FromBody] string username)
+        {
+            try
+            {
+                var result = await userDB.GetUserNotifications(username);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get user notifications ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("marknotificationasread")]
+        public async Task<IActionResult> MarkNotificationAsRead([FromBody] int notificationId)
+        {
+            try
+            {
+                await userDB.MarkNotificationAsRead(notificationId);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to mark notification as read ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("deletenotification")]
+        public async Task<IActionResult> DeleteNotification([FromBody] int notificationId)
+        {
+            try
+            {
+                await userDB.DeleteNotification(notificationId);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to delete notification ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("sendnotification")]
+        public async Task<IActionResult> SendNotification([FromBody] Notification notification)
+        {
+            try
+            {
+                await userDB.SendNotification(notification);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to send notification ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("sendemailnotification")]
+        public async Task<IActionResult> SendEmailNotification([FromBody] Notification notification)
+        {
+            try
+            {
+                List<EmailNotification> allUserEmails = await userDB.GetAllUserEmailsAsync();
+
+                foreach (var email in allUserEmails)
+                {
+                    string notificationTitleWithUsername = notification.Title.Replace("<username>", email.FullName);
+                    string notificationBodyWithUsername = notification.Message.Replace("<username>", email.FullName);
+
+                    var emailMessage = new MailMessage("therealjoshrobertson@gmail.com", email.Email)
+                    {
+                        Subject = notificationTitleWithUsername,
+                        Body = notificationBodyWithUsername + "\n\nSincerely,\nThe VerseApp Team"
+                    };
+
+                    var smtp = new SmtpClient("smtp.gmail.com", 587)
+                    {
+                        EnableSsl = true,
+                        Credentials = new NetworkCredential("therealjoshrobertson@gmail.com", "tofp kaki lkuv nffh")
+                    };
+
+                    await smtp.SendMailAsync(emailMessage);
+                }
+
+                return Ok();
+            }
+            catch (SmtpException smtpEx)
+            {
+                Console.Write(smtpEx.ToString());
+                return StatusCode(500, new { message = "Failed to send reset link via email", error = smtpEx.Message });
+            }
+            catch (Exception ex)
+            {
+                Console.Write(ex.ToString());
+                return StatusCode(500, new { message = "Failed to send reset link ", error = ex.Message });
+            }
+        }
+
+        [HttpGet("getallusernames")]
+        public async Task<IActionResult> GetAllUsernames()
+        {
+            try
+            {
+                List<string> usernames = new List<string>();
+                usernames = await userDB.GetAllUsernamesAsync();
+                return Ok(usernames);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get all usernames ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("checkifusernameexists")]
+        public async Task<IActionResult> CheckIfUsernameExists([FromBody] string username)
+        {
+            try
+            {
+                int exists = await userDB.CheckUsernameExists(username);
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to check if username exists ", error = ex.Message });
             }
         }
     }

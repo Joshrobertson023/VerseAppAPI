@@ -168,6 +168,7 @@ namespace VerseAppAPI.Controllers
             await conn.OpenAsync();
 
             using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
 
             cmd.Parameters.Add(new OracleParameter("username", user.Username));
             cmd.Parameters.Add(new OracleParameter("firstName", user.FirstName));
@@ -178,6 +179,43 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("status", user.Status));
 
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<string>> GetAllUsernamesAsync()
+        {
+            usernames = new List<string>();
+            string query = @"SELECT USERNAME FROM USERS WHERE IS_DELETED = 0";
+            OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            OracleCommand cmd = new OracleCommand(query, conn);
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                usernames.Add(username);
+            }
+            conn.Close();
+            conn.Dispose();
+            return usernames;
+        }
+
+        public async Task<int> CheckUsernameExists(string username)
+        {
+            int exists = 0;
+            string query = @"SELECT 1 FROM USERS WHERE USERNAME = :username AND
+                                IS_DELETED = 0";
+            OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("username", username));
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) 
+            {
+                exists = 1; // If we read a row, the username exists
+            }
+            conn.Close();
+            conn.Dispose();
+            return exists;
         }
 
         public async Task GetUserFriendsDBAsync(int userId)
@@ -210,24 +248,6 @@ namespace VerseAppAPI.Controllers
             conn.Close();
             conn.Dispose();
         }
-
-        public async Task<bool> CheckUsernameExists(string username)
-        {
-            string query = @"SELECT 1 FROM USERS WHERE USERNAME = :username";
-
-            using var conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            var cmd = new OracleCommand(query, conn)
-            {
-                CommandTimeout = 30
-            };
-            cmd.Parameters.Add(new OracleParameter("username", username));
-
-            await using var reader = await cmd.ExecuteReaderAsync();
-            bool exists = await reader.ReadAsync();
-            return exists;
-        }
-
 
         public async Task<List<RecoveryInfo>> GetRecoveryInfoDBAsync()
         {
@@ -316,6 +336,7 @@ namespace VerseAppAPI.Controllers
             await conn.OpenAsync();
 
             using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
 
             cmd.Parameters.Add(new OracleParameter("token", token));
             cmd.Parameters.Add(new OracleParameter("username", username));
@@ -487,11 +508,115 @@ namespace VerseAppAPI.Controllers
             return true;
         }
 
-        public void LogoutUser()
+        public string everyoneUsername = "jUW=f<9m!'2kgegw3g";
+
+        public async Task<List<Notification>> GetUserNotifications(string username)
         {
-            currentUser = null;
-            currentUserCategories = new List<string>();
-            currentUserFriends = new Dictionary<UserModel, int>();
+            var notifications = new List<Notification>();
+            const string query = @"
+                                    SELECT *
+                                      FROM USER_NOTIFICATIONS
+                                     WHERE USERNAME         = :username
+                                        OR USERNAME         = :everyoneUsername
+                                     ORDER BY CREATED_DATE DESC";
+
+            using var conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+
+            using var cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("username", username));
+            cmd.Parameters.Add(new OracleParameter("everyoneUsername", everyoneUsername));
+
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            int idxId = reader.GetOrdinal("NOTIFICATION_ID");
+            int idxTitle = reader.GetOrdinal("NOTIFICATION_TITLE");
+            int idxText = reader.GetOrdinal("NOTIFICATION_TEXT");
+            int idxUser = reader.GetOrdinal("USERNAME");
+            int idxSeen = reader.GetOrdinal("SEEN");
+            int idxSentBy = reader.GetOrdinal("SENT_BY");
+            int idxCreated = reader.GetOrdinal("CREATED_DATE");
+
+            while (await reader.ReadAsync())
+            {
+                var not = new Notification
+                {
+                    Id = reader.GetInt32(idxId),
+                    Title = reader.IsDBNull(idxTitle) ? null : reader.GetString(idxTitle),
+                    Message = reader.IsDBNull(idxText) ? null : reader.GetString(idxText),
+                    Username = reader.IsDBNull(idxUser) ? null : reader.GetString(idxUser),
+                    Seen = reader.GetInt32(idxSeen),
+                    SentBy = reader.IsDBNull(idxSentBy) ? null : reader.GetString(idxSentBy),
+                    DateCreated = reader.GetDateTime(idxCreated)
+                };
+                notifications.Add(not);
+            }
+
+            return notifications;
+        }
+
+
+        public async Task MarkNotificationAsRead(int notificationId)
+        {
+            string query = @"UPDATE USER_NOTIFICATIONS 
+                             SET SEEN = 1 
+                             WHERE NOTIFICATION_ID = :notificationId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteNotification(int notificationId)
+        {
+            string query = @"DELETE FROM USER_NOTIFICATIONS 
+                             WHERE NOTIFICATION_ID = :notificationId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task SendNotification(Notification notification)
+        {
+            string query = @"INSERT INTO USER_NOTIFICATIONS (NOTIFICATION_TITLE, NOTIFICATION_TEXT, USERNAME, SENT_BY, SEEN, CREATED_DATE) 
+                             VALUES (:title, :message, :username, :sentBy, 0, SYSDATE)";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
+            cmd.Parameters.Add(new OracleParameter("title", notification.Title));
+            cmd.Parameters.Add(new OracleParameter("message", notification.Message));
+            cmd.Parameters.Add(new OracleParameter("username", notification.Username));
+            cmd.Parameters.Add(new OracleParameter("sentBy", notification.SentBy));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<EmailNotification>> GetAllUserEmailsAsync()
+        {
+            List<EmailNotification> emails = new List<EmailNotification>();
+            string query = @"SELECT EMAIL, USERNAME, FIRST_NAME, LAST_NAME FROM USERS WHERE IS_DELETED = 0 AND EMAIL IS NOT NULL";
+            OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            OracleCommand cmd = new OracleCommand(query, conn);
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string fName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
+                string lName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                var email = new EmailNotification
+                {
+                    Email = reader.GetString(reader.GetOrdinal("EMAIL")),
+                    Username = reader.GetString(reader.GetOrdinal("USERNAME")),
+                    FullName = $"{fName.Substring(0, 1).ToUpper() + fName.Substring(1)} {lName.Substring(0, 1).ToUpper() + lName.Substring(1)}"
+                };
+                emails.Add(email);
+            }
+            conn.Close();
+            conn.Dispose();
+            return emails;
         }
     }
 }

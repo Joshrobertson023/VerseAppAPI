@@ -43,5 +43,89 @@ namespace VerseAppAPI.Controllers
                 return StatusCode(500, new { message = "Failed to get user verse from reference ", error = ex.Message });
             }
         }
+
+        [HttpPost("getuserversebykeywords")]
+        public async Task<IActionResult> GetUserVerseByKeywords([FromBody] List<string> keywords)
+        {
+            try
+            {
+                var result = await verseDB.GetUserVerseByKeywords(keywords);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get user verse by keywords ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("addnewcollection")]
+        public async Task<IActionResult> AddNewCollection([FromBody] Collection collection)
+        {
+            try
+            {
+                await verseDB.AddNewCollection(collection);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to add new collection ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("getusercollections")]
+        public async Task<IActionResult> GetUserCollections([FromBody] string username)
+        {
+            try
+            {
+                var result = await verseDB.GetUserCollections(username);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get user collections ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("deletecollection")]
+        public async Task<IActionResult> DeleteCollection([FromBody] int collectionId)
+        {
+            try
+            {
+                await verseDB.DeleteCollection(collectionId);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to delete collection ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("getcollection")]
+        public async Task<IActionResult> GetCollection([FromBody] int collectionId)
+        {
+            try
+            {
+                var result = await verseDB.GetCollectionById(collectionId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get collection ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("adduserversestonewcollection")]
+        public async Task<IActionResult> AddUserVerses([FromBody] List<UserVerse> userVerses)
+        {
+            try
+            {
+                await verseDB.AddUserVersestonewcollection(userVerses);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to add user verses ", error = ex.Message });
+            }
+        }
     }
 }
