@@ -404,7 +404,7 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddNewCollection(Collection collection)
         {
-            string query = @"INSERT INTO COLLECTIONS (AUTHOR, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves)";
+            string query = @"INSERT INTO COLLECTIONS (AUTHOR, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES, USER_ID) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves, :userId)";
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
@@ -413,6 +413,7 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("title", collection.Title));
             cmd.Parameters.Add(new OracleParameter("numVerses", collection.NumVerses));
             cmd.Parameters.Add(new OracleParameter("visibility", collection.Visibility));
+            cmd.Parameters.Add(new OracleParameter("userId", collection.UserId));
             cmd.Parameters.Add(new OracleParameter("isPublished", (object)0));
             cmd.Parameters.Add(new OracleParameter("numSaves", (object)0));
             await cmd.ExecuteNonQueryAsync();
@@ -420,105 +421,77 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
         }
 
-        public async Task<List<Collection>> GetUserCollections(string username)
+        public async Task<List<Collection>> GetUserCollections(int userId)
         {
             List<Collection> collections = new List<Collection>();
-            string query = @"SELECT * FROM COLLECTIONS WHERE AUTHOR = :username";
+
+            string query =
+                @"      SELECT
+                        c.collection_id,
+                        c.date_created,
+                        c.last_practiced   AS c_last_practiced,
+                        c.progress_percent AS c_progress_percent,
+                        c.author,
+                        c.title,
+                        c.num_verses,
+                        c.visibility,
+                        c.is_published,
+                        c.num_saves,
+                        c.user_id,
+                        uv.verse_id,
+                        uv.user_id,
+                        uv.reference,
+                        uv.last_practiced,
+                        uv.date_memorized,
+                        uv.progress_percent,
+                        uv.times_reviewed,
+                        uv.times_memorized,
+                        uv.date_saved
+                      FROM collections c
+                      LEFT JOIN user_verses uv
+                        ON c.collection_id = uv.collection_id
+                        AND uv.user_id      = :userId
+                      WHERE c.user_id    = :userId
+                      ORDER BY c.collection_id";
+
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("username", username));
+            cmd.Parameters.Add(new OracleParameter("userId", userId));
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
+
+            Collection newCollection = new Collection();
+            List<int> collectionIds = new List<int>();
             while (await reader.ReadAsync())
             {
-                Collection collection = new Collection
+                int collectionId = reader.GetInt32(reader.GetOrdinal("COLLECTION_ID"));
+                if (!collectionIds.Contains(collectionId))
                 {
-                    Id = reader.GetInt32(reader.GetOrdinal("COLLECTION_ID")),
-                    Author = reader.GetString(reader.GetOrdinal("AUTHOR")),
-                    Title = reader.GetString(reader.GetOrdinal("TITLE")),
-                    NumVerses = reader.GetInt32(reader.GetOrdinal("NUM_VERSES")),
-                    Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY")),
-                    IsPublished = reader.GetInt32(reader.GetOrdinal("IS_PUBLISHED")),
-                    NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES"))
-                };
-                collection.UserVerses = await GetUserVersesByCollectionId(collection.Id);
-                collections.Add(collection);
-            }
-            conn.Close();
-            conn.Dispose();
-            return collections;
-        }
+                    newCollection = new Collection
+                    {
+                        Id = collectionId,
+                        Author = reader.GetString(reader.GetOrdinal("AUTHOR")),
+                        UserId = reader.GetInt32(reader.GetOrdinal("USER_ID")),
+                        DateCreated = reader.GetDateTime(reader.GetOrdinal("DATE_CREATED")),
+                        LastPracticed = reader.IsDBNull(reader.GetOrdinal("C_LAST_PRACTICED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("C_LAST_PRACTICED")),
+                        ProgressPercent = reader.IsDBNull(reader.GetOrdinal("C_PROGRESS_PERCENT")) ? 0 : reader.GetFloat(reader.GetOrdinal("PROGRESS_PERCENT")),
+                        Title = reader.GetString(reader.GetOrdinal("TITLE")),
+                        NumVerses = reader.GetInt32(reader.GetOrdinal("NUM_VERSES")),
+                        Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY")),
+                        IsPublished = reader.GetInt32(reader.GetOrdinal("IS_PUBLISHED")),
+                        NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES"))
+                    };
+                    collections.Add(newCollection);
+                    collectionIds.Add(collectionId);
+                }
 
-        public async Task DeleteCollection(int collectionId)
-        {
-            await DeleteUserVersesByCollectionId(collectionId);
+                int index = collectionIds.IndexOf(collectionId);
+                Collection collection = collections[index];
 
-            string query = @"DELETE FROM COLLECTIONS WHERE COLLECTION_ID = :collectionId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
-            await cmd.ExecuteNonQueryAsync();
-            conn.Close();
-            conn.Dispose();
-        }
-
-        public async Task DeleteUserVersesByCollectionId(int collectionId)
-        {
-            string query = @"DELETE FROM USER_VERSES WHERE COLLECTION_ID = :collectionId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
-            await cmd.ExecuteNonQueryAsync();
-            conn.Close();
-            conn.Dispose();
-        }
-
-        public async Task<Collection> GetCollectionById(int collectionId)
-        {
-            Collection collection = new Collection();
-            string query = @"SELECT * FROM COLLECTIONS WHERE COLLECTION_ID = :collectionId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
-            OracleDataReader reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                collection.Id = reader.GetInt32(reader.GetOrdinal("COLLECTION_ID"));
-                collection.Author = reader.GetString(reader.GetOrdinal("AUTHOR"));
-                collection.Title = reader.GetString(reader.GetOrdinal("TITLE"));
-                collection.NumVerses = reader.GetInt32(reader.GetOrdinal("NUM_VERSES"));
-                collection.Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY"));
-                collection.IsPublished = reader.GetInt32(reader.GetOrdinal("IS_PUBLISHED"));
-                collection.NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES"));
-            }
-            conn.Close();
-            conn.Dispose();
-
-            // Get each user verse in the collection
-            collection.UserVerses = await GetUserVersesByCollectionId(collectionId);
-
-            return collection;
-        }
-
-        public async Task<List<UserVerse>> GetUserVersesByCollectionId(int collectionId)
-        {
-            List<UserVerse> userVerses = new List<UserVerse>();
-            string query = @"SELECT * FROM USER_VERSES WHERE COLLECTION_ID = :collectionId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
-            OracleDataReader reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                UserVerse userVerse = new UserVerse
+                UserVerse userVerse = new UserVerse()
                 {
                     VerseId = reader.GetInt32(reader.GetOrdinal("VERSE_ID")),
                     UserId = reader.GetInt32(reader.GetOrdinal("USER_ID")),
-                    CollectionId = reader.GetInt32(reader.GetOrdinal("COLLECTION_ID")),
                     Reference = reader.GetString(reader.GetOrdinal("REFERENCE")),
                     DateAdded = reader.GetDateTime(reader.GetOrdinal("DATE_SAVED")),
                     LastPracticed = reader.IsDBNull(reader.GetOrdinal("LAST_PRACTICED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("LAST_PRACTICED")),
@@ -527,36 +500,74 @@ namespace VerseAppAPI.Controllers
                     TimesReviewed = reader.IsDBNull(reader.GetOrdinal("TIMES_REVIEWED")) ? 0 : reader.GetInt32(reader.GetOrdinal("TIMES_REVIEWED")),
                     TimesMemorized = reader.IsDBNull(reader.GetOrdinal("TIMES_MEMORIZED")) ? 0 : reader.GetInt32(reader.GetOrdinal("TIMES_MEMORIZED")),
                 };
-                userVerses.Add(userVerse);
+                collection.UserVerses.Add(userVerse);
             }
             conn.Close();
             conn.Dispose();
+            return collections;
+        }
 
-            foreach (var userVerse in userVerses)
+        public async Task DeleteCollection(int collectionId)
+        {
+            using var conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using var tx = conn.BeginTransaction();
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+
+            cmd.CommandText = "DELETE FROM USER_VERSES WHERE COLLECTION_ID = :collectionId";
+            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
+            await cmd.ExecuteNonQueryAsync();
+
+            cmd.CommandText = "DELETE FROM COLLECTIONS WHERE COLLECTION_ID = :collectionId";
+            cmd.Parameters.Clear();
+            cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
+            await cmd.ExecuteNonQueryAsync();
+
+            conn.Close();
+            conn.Dispose();
+        }
+
+        public async Task<List<Verse>> GetVersesByReferences(List<string> references)
+        {
+            List<Verse> verses = new List<Verse>();
+
+            string inParams = string.Join(",", references.Select((r, i) => $":r{i}"));
+
+            string query = $@"
+                            SELECT verse_id,
+                                   verse_reference,
+                                   text,
+                                   users_saved_verse,
+                                   users_memorized
+                              FROM verses
+                             WHERE verse_reference IN ({inParams})";
+
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            for (int i = 0; i < references.Count; i++)
             {
-                string verseQuery = @"SELECT * FROM VERSES WHERE VERSE_ID = :verseId";
-                using OracleConnection verseConn = new OracleConnection(connectionString);
-                await verseConn.OpenAsync();
-                using OracleCommand verseCmd = new OracleCommand(verseQuery, verseConn);
-                verseCmd.Parameters.Add(new OracleParameter("verseId", userVerse.VerseId));
-                OracleDataReader verseReader = await verseCmd.ExecuteReaderAsync();
-                while (await verseReader.ReadAsync())
-                {
-                    Verse verse = new Verse
-                    {
-                        Id = verseReader.GetInt32(verseReader.GetOrdinal("VERSE_ID")),
-                        Reference = verseReader.GetString(verseReader.GetOrdinal("VERSE_REFERENCE")),
-                        UsersSaved = verseReader.GetInt32(verseReader.GetOrdinal("USERS_SAVED_VERSE")),
-                        UsersMemorized = verseReader.GetInt32(verseReader.GetOrdinal("USERS_MEMORIZED")),
-                        Text = verseReader.GetString(verseReader.GetOrdinal("TEXT"))
-                    };
-                    userVerse.Verses.Add(verse);
-                }
-                verseConn.Close();
-                verseConn.Dispose();
+                cmd.Parameters.Add(new OracleParameter($"r{i}", references[i]));
             }
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
 
-            return userVerses;
+            while (await reader.ReadAsync())
+            {
+                Verse newVerse = new Verse()
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("VERSE_ID")),
+                    Reference = reader.GetString(reader.GetOrdinal("VERSE_REFERENCE")),
+                    Text = reader.GetString(reader.GetOrdinal("TEXT")),
+                    UsersSaved = reader.GetInt32(reader.GetOrdinal("USERS_SAVED_VERSE")),
+                    UsersMemorized = reader.GetInt32(reader.GetOrdinal("USERS_MEMORIZED"))
+
+                };
+                verses.Add(newVerse);
+            }
+            conn.Close();
+            conn.Dispose();
+            return verses;
         }
 
         public async Task AddUserVersestonewcollection(List<UserVerse> userVerses)

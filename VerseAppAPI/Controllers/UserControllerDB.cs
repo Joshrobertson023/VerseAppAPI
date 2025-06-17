@@ -92,6 +92,8 @@ namespace VerseAppAPI.Controllers
                 currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
+                    currentUser.CollectionsSort = reader.GetString(reader.GetOrdinal("COLLECTIONS_SORT"));
                 currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
                 currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
                 currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
@@ -161,8 +163,8 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddUserDBAsync(UserModel user)
         {
-            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN)
-                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE)";
+            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER)
+                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, 'none')";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();

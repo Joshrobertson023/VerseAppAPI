@@ -11,6 +11,10 @@ namespace DBAccessLibrary.Models
     {
         public int Id { get; set; }
         public string Author { get; set; }
+        public int UserId { get; set; }
+        public DateTime DateCreated { get; set; }
+        public DateTime LastPracticed { get; set; }
+        public float ProgressPercent { get; set; }
         public string Title { get; set; }
         public int NumVerses { get; set; }
         public int Visibility { get; set; }

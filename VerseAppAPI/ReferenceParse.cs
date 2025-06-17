@@ -115,5 +115,40 @@ namespace VerseAppAPI
 
             return returnList;
         }
+
+        public static List<string> GetIndividualVersesWithReference(string reference)
+        {
+            List<string> references = new List<string>();
+
+            List<string> parts = ConvertToReferenceParts(reference);
+            string book = parts[0];
+            string chapter = parts[1];
+            string versesPart = parts[2];
+
+            string[] segments = versesPart.Split(',');
+            for (int i = 0; i < segments.Length; i++)
+            {
+                string seg = segments[i].Trim();
+
+                if (seg.Contains('-'))
+                {
+                    string[] bounds = seg.Split('-');
+                    int start = Convert.ToInt32(bounds[0]);
+                    int end = Convert.ToInt32(bounds[1]);
+
+                    for (int v = start; v <= end; v++)
+                    {
+                        references.Add($"{book} {chapter}:{v}");
+                    }
+                }
+                else
+                {
+                    int v = Convert.ToInt32(seg);
+                    references.Add($"{book} {chapter}:{v}");
+                }
+            }
+
+            return references;
+        }
     }
 }

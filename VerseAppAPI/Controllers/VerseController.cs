@@ -73,16 +73,43 @@ namespace VerseAppAPI.Controllers
         }
 
         [HttpPost("getusercollections")]
-        public async Task<IActionResult> GetUserCollections([FromBody] string username)
+        public async Task<IActionResult> GetUserCollections([FromBody] int userId)
         {
             try
             {
-                var result = await verseDB.GetUserCollections(username);
+                var result = await verseDB.GetUserCollections(userId);
                 return Ok(result);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Failed to get user collections ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("getversesbycollection")]
+        public async Task<IActionResult> GetVersesByCollection([FromBody] Collection collection)
+        {
+            try
+            {
+                var allReferences = collection.UserVerses.SelectMany(uv => ReferenceParse.GetIndividualVersesWithReference(uv.Reference))
+                                                         .Distinct().ToList();
+
+                var allVerses = await verseDB.GetVersesByReferences(allReferences);
+
+                var versesByReference = allVerses.ToDictionary(v => v.Reference, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var userVerse in collection.UserVerses)
+                {
+                    var reference = ReferenceParse.GetIndividualVersesWithReference(userVerse.Reference);
+                    userVerse.Verses = reference.Where(r => versesByReference.TryGetValue(r, out _))
+                                                .Select(r => versesByReference[r]).ToList();
+                }
+
+                return Ok(collection);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get verses from collection ", error = ex.Message });
             }
         }
 
@@ -97,20 +124,6 @@ namespace VerseAppAPI.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Failed to delete collection ", error = ex.Message });
-            }
-        }
-
-        [HttpPost("getcollection")]
-        public async Task<IActionResult> GetCollection([FromBody] int collectionId)
-        {
-            try
-            {
-                var result = await verseDB.GetCollectionById(collectionId);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Failed to get collection ", error = ex.Message });
             }
         }
 

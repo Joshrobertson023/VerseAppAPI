@@ -9,6 +9,7 @@ namespace VerseAppAPI.Models
     public class UserModel
     {
         public int Id { get; set; }
+        public string CollectionsSort { get; set; }
         public string Username { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
@@ -39,6 +40,7 @@ namespace VerseAppAPI.Models
             PasswordHash = hashedPassword;
             AuthToken = token;
             Status = status;
+            CollectionsSort = "none";
         }
 
         public UserModel() { }
@@ -47,6 +49,9 @@ namespace VerseAppAPI.Models
         {
             get
             {
+                if (FirstName == null || LastName == null)
+                    return string.Empty;
+
                 return (FirstName.Substring(0, 1).ToUpper() + FirstName.Substring(1) + " "
                         + LastName.Substring(0, 1).ToUpper() + LastName.Substring(1));
             }
