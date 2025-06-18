@@ -91,6 +91,9 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
+                if (collection.NumVerses <= 0)
+                    return Ok(collection);
+
                 var allReferences = collection.UserVerses.SelectMany(uv => ReferenceParse.GetIndividualVersesWithReference(uv.Reference))
                                                          .Distinct().ToList();
 
