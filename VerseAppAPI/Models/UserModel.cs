@@ -9,7 +9,8 @@ namespace VerseAppAPI.Models
     public class UserModel
     {
         public int Id { get; set; }
-        public string CollectionsSort { get; set; }
+        public int CollectionsSort { get; set; }
+        public string CollectionsOrder { get; set; }
         public string Username { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
@@ -40,7 +41,8 @@ namespace VerseAppAPI.Models
             PasswordHash = hashedPassword;
             AuthToken = token;
             Status = status;
-            CollectionsSort = "none";
+            CollectionsOrder = "none";
+            CollectionsSort = 0;
         }
 
         public UserModel() { }

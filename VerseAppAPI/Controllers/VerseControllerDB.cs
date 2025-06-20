@@ -404,7 +404,7 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddNewCollection(Collection collection)
         {
-            string query = @"INSERT INTO COLLECTIONS (AUTHOR, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES, USER_ID, DATE_CREATED) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves, :userId, SYSDATE)";
+            string query = @"INSERT INTO COLLECTIONS (AUTHOR, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES, USER_ID, DATE_CREATED, VERSE_ORDER, PINNED) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves, :userId, SYSDATE, :verseOrder, :pinned)";
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
@@ -414,8 +414,10 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("numVerses", collection.NumVerses));
             cmd.Parameters.Add(new OracleParameter("visibility", collection.Visibility));
             cmd.Parameters.Add(new OracleParameter("userId", collection.UserId));
+            cmd.Parameters.Add(new OracleParameter("verseOrder", collection.VerseOrder));
             cmd.Parameters.Add(new OracleParameter("isPublished", (object)0));
             cmd.Parameters.Add(new OracleParameter("numSaves", (object)0));
+            cmd.Parameters.Add(new OracleParameter("pinned", collection.Pinned));
             await cmd.ExecuteNonQueryAsync();
             conn.Close();
             conn.Dispose();
@@ -438,6 +440,8 @@ namespace VerseAppAPI.Controllers
                         c.is_published,
                         c.num_saves,
                         c.user_id,
+                        c.pinned,
+                        c.verse_order,
                         uv.verse_id,
                         uv.user_id,
                         uv.reference,
@@ -452,7 +456,7 @@ namespace VerseAppAPI.Controllers
                         ON c.collection_id = uv.collection_id
                         AND uv.user_id      = :userId
                       WHERE c.user_id    = :userId
-                      ORDER BY c.collection_id";
+                      ORDER BY c.collection_id DESC";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
@@ -479,7 +483,9 @@ namespace VerseAppAPI.Controllers
                         NumVerses = reader.IsDBNull(reader.GetOrdinal("NUM_VERSES")) ? 0 : reader.GetInt32(reader.GetOrdinal("NUM_VERSES")),
                         Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY")),
                         IsPublished = reader.GetInt32(reader.GetOrdinal("IS_PUBLISHED")),
-                        NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES"))
+                        NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES")),
+                        Pinned = reader.GetInt32(reader.GetOrdinal("PINNED")),
+                        VerseOrder = reader.IsDBNull(reader.GetOrdinal("VERSE_ORDER")) ? string.Empty : reader.GetString(reader.GetOrdinal("VERSE_ORDER"))
                     };
                     collections.Add(newCollection);
                     collectionIds.Add(collectionId);
@@ -508,6 +514,18 @@ namespace VerseAppAPI.Controllers
             conn.Close();
             conn.Dispose();
             return collections;
+        }
+
+        public async Task TogglePinCollection(Collection collection)
+        {
+            string query = @"UPDATE COLLECTIONS SET PINNED = CASE WHEN PINNED = 1 THEN 0 ELSE 1 END WHERE COLLECTION_ID = :collectionId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("collectionId", collection.Id));
+            await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
         }
 
         public async Task DeleteCollection(int collectionId)
@@ -633,6 +651,21 @@ namespace VerseAppAPI.Controllers
                 cmd.Parameters.Add(new OracleParameter("verseId", verse.Id));
                 await cmd.ExecuteNonQueryAsync();
             }
+            conn.Close();
+            conn.Dispose();
+        }
+
+        public async Task UpdateCollectionsOrder(OrderInfo order)
+        {
+            string query = @"UPDATE USERS set collections_order = :collectionsOrder, collections_sort = :orderBy WHERE user_id = :userId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
+            cmd.Parameters.Add(new OracleParameter("collectionsOrder", order.Order));
+            cmd.Parameters.Add(new OracleParameter("orderBy", order.OrderBy));
+            cmd.Parameters.Add(new OracleParameter("userId", order.UserId));
+            await cmd.ExecuteNonQueryAsync();
             conn.Close();
             conn.Dispose();
         }

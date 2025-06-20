@@ -20,6 +20,8 @@ namespace DBAccessLibrary.Models
         public int Visibility { get; set; }
         public int IsPublished { get; set; }
         public int NumSaves { get; set; }
+        public int Pinned { get; set; }
+        public string VerseOrder { get; set; }
         public List<UserVerse> UserVerses { get; set; } = new List<UserVerse>();
     }
 }

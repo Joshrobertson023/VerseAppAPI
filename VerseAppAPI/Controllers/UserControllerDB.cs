@@ -84,6 +84,7 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("username", username));
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
 
+            string order = string.Empty;
             while (await reader.ReadAsync())
             {
                 currentUser.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
@@ -93,7 +94,9 @@ namespace VerseAppAPI.Controllers
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
                 if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
-                    currentUser.CollectionsSort = reader.GetString(reader.GetOrdinal("COLLECTIONS_SORT"));
+                    currentUser.CollectionsSort = reader.GetInt32(reader.GetOrdinal("COLLECTIONS_SORT"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_ORDER")))
+                    order = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
                 currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
                 currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
                 currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
@@ -109,6 +112,8 @@ namespace VerseAppAPI.Controllers
                 currentUser.FollowVerseOfTheDay = reader.GetInt32(reader.GetOrdinal("FOLLOW_VERSE_OF_THE_DAY"));
                 currentUser.Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY"));
                 currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
+                if (!string.IsNullOrEmpty(order))
+                    currentUser.CollectionsOrder = order;
             }
 
             conn.Close();
@@ -138,6 +143,10 @@ namespace VerseAppAPI.Controllers
                 currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
+                    currentUser.CollectionsSort = reader.GetInt32(reader.GetOrdinal("COLLECTIONS_SORT"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_ORDER")))
+                    currentUser.CollectionsOrder = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
                 currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
                 currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
                 currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
@@ -163,8 +172,8 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddUserDBAsync(UserModel user)
         {
-            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER)
-                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, 'none')";
+            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER, COLLECTIONS_SORT)
+                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, 'NONE', 0)";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();

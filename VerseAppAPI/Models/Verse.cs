@@ -13,5 +13,9 @@ namespace VerseAppAPI.Models
         public string Text { get; set; }
         public int UsersSaved { get; set; }
         public int UsersMemorized { get; set; }
+        public string VerseNumber
+        {
+            get => ReferenceParse.GetVerseNumber(Reference);
+        }
     }
 }

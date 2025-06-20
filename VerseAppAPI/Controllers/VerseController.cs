@@ -143,5 +143,33 @@ namespace VerseAppAPI.Controllers
                 return StatusCode(500, new { message = "Failed to add user verses ", error = ex.Message });
             }
         }
+
+        [HttpPost("togglepincolllection")]
+        public async Task<IActionResult> TogglePinCollection([FromBody] Collection collection)
+        {
+            try
+            {
+                await verseDB.TogglePinCollection(collection);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to toggle pin collection ", error = ex.Message });
+            }
+        }
+
+        [HttpPost("updatecollectionsorder")]
+        public async Task<IActionResult> UpdateCollectionsOrder([FromBody] OrderInfo order)
+        {
+            try
+            {
+                await verseDB.UpdateCollectionsOrder(order);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to update collections order ", error = ex.Message });
+            }
+        }
     }
 }
