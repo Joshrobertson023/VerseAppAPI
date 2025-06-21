@@ -629,5 +629,19 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
             return emails;
         }
+
+        public async Task SetUserActive(int userId)
+        {
+            if (userId <= 0)
+                throw new ArgumentException("Invalid user ID provided.");
+            string query = @"UPDATE USERS 
+                             SET LAST_SEEN = SYSDATE 
+                             WHERE USER_ID = :userId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("userId", userId));
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 }

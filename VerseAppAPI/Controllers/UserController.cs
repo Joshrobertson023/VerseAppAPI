@@ -313,5 +313,19 @@ namespace VerseAppAPI.Controllers
                 return StatusCode(500, new { message = "Failed to check if username exists ", error = ex.Message });
             }
         }
+
+        [HttpPost("setuseractive")]
+        public async Task<IActionResult> SetUserActive([FromBody] int userId)
+        {
+            try
+            {
+                await userDB.SetUserActive(userId);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to set user active ", error = ex.Message });
+            }
+        }
     }
 }
