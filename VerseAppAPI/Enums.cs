@@ -8,5 +8,17 @@
             Inactive = 1,
             Deleted = 2
         };
+
+        public enum CollectionsSort
+        {
+            Newest = 0,
+            Title = 1,
+            LastPracticed = 2,
+            Completion = 3,
+            Custom = 4
+        };
+
+        public const string DefaultCollectionsOrder = "none";
+        public const CollectionsSort DefaultCollectionsSort = CollectionsSort.Newest;
     }
 }

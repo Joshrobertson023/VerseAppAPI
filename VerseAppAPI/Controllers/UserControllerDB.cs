@@ -39,7 +39,7 @@ namespace VerseAppAPI.Controllers
             }
             catch
             {
-                // swallow errors -- this is just a warm‐up
+                // ignore errors
             }
         }
 
@@ -134,31 +134,42 @@ namespace VerseAppAPI.Controllers
 
             while (await reader.ReadAsync())
             {
-                currentUser.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                currentUser.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
-                currentUser.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                if (!reader.HasRows)
+                    throw new Exception("No rows found for table USERS.");
+                if (!reader.IsDBNull(reader.GetOrdinal("USERNAME")))
+                    currentUser.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("F_NAME")))
+                    currentUser.FName = reader.GetString(reader.GetOrdinal("F_NAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("L_NAME")))
+                    currentUser.LName = reader.GetString(reader.GetOrdinal("L_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                if (!reader.IsDBNull(reader.GetOrdinal("AUTH_TOKEN")))
+                    currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
                 if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
                     currentUser.CollectionsSort = reader.GetInt32(reader.GetOrdinal("COLLECTIONS_SORT"));
                 if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_ORDER")))
                     currentUser.CollectionsOrder = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
-                currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
-                currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
-                currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
-                currentUser.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
+                if (!reader.IsDBNull(reader.GetOrdinal("HASHED_PASSWORD")))
+                    currentUser.HashedPassword = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
+                if (!reader.IsDBNull(reader.GetOrdinal("STATUS")))
+                    currentUser.Status = (Enums.Status)reader.GetInt32(reader.GetOrdinal("STATUS"));
+                if (!reader.IsDBNull(reader.GetOrdinal("DATE_REGISTERED")))
+                    currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("LAST_SEEN")))
+                    currentUser.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
                 if (!reader.IsDBNull(reader.GetOrdinal("DESCRIPTION")))
                     currentUser.Description = reader.GetString(reader.GetOrdinal("DESCRIPTION"));
                 if (!reader.IsDBNull(reader.GetOrdinal("CURRENT_READING_PLAN")))
                     currentUser.CurrentReadingPlan = reader.GetInt32(reader.GetOrdinal("CURRENT_READING_PLAN"));
-                currentUser.IsDeleted = reader.GetInt32(reader.GetOrdinal("IS_DELETED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("ACCOUNT_DELETED")))
+                    currentUser.AccountDeleted = reader.GetInt32(reader.GetOrdinal("ACCOUNT_DELETED")) == 1 ? true : false;
                 if (!reader.IsDBNull(reader.GetOrdinal("REASON_DELETED")))
                     currentUser.ReasonDeleted = reader.GetString(reader.GetOrdinal("REASON_DELETED"));
-                currentUser.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED"));
-                currentUser.FollowVerseOfTheDay = reader.GetInt32(reader.GetOrdinal("FOLLOW_VERSE_OF_THE_DAY"));
-                currentUser.Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY"));
-                currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
+                if (!reader.IsDBNull(reader.GetOrdinal("FLAGGED")))
+                    currentUser.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED")) == 1 ? true : false;
+                if (!reader.IsDBNull(reader.GetOrdinal("PROFILE_VISIBILITY")))
+                    currentUser.ProfileVisibility = reader.GetInt32(reader.GetOrdinal("PROFILE_VISIBILITY"));
             }
 
             conn.Close();
@@ -169,8 +180,8 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddUserDBAsync(User user)
         {
-            string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER, COLLECTIONS_SORT)
-                             VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, 'NONE', 0)";
+            string query = @"INSERT INTO USERS (USERNAME, F_NAME, L_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER, COLLECTIONS_SORT)
+                             VALUES (:username, :fName, :lName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, :defaultOrder, defaultSort)";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
@@ -179,12 +190,14 @@ namespace VerseAppAPI.Controllers
             cmd.BindByName = true;
 
             cmd.Parameters.Add(new OracleParameter("username", user.Username));
-            cmd.Parameters.Add(new OracleParameter("firstName", user.FirstName));
-            cmd.Parameters.Add(new OracleParameter("lastName", user.LastName));
-            cmd.Parameters.Add(new OracleParameter("email", user.Email != null ? user.Email : DBNull.Value));
-            cmd.Parameters.Add(new OracleParameter("userPassword", user.PasswordHash));
+            cmd.Parameters.Add(new OracleParameter("firstName", user.FName));
+            cmd.Parameters.Add(new OracleParameter("lastName", user.LName));
+            cmd.Parameters.Add(new OracleParameter("email", user.Email));
+            cmd.Parameters.Add(new OracleParameter("userPassword", user.HashedPassword));
             cmd.Parameters.Add(new OracleParameter("token", user.AuthToken));
             cmd.Parameters.Add(new OracleParameter("status", user.Status));
+            cmd.Parameters.Add(new OracleParameter("defaultOrder", Enums.DefaultCollectionsOrder));
+            cmd.Parameters.Add(new OracleParameter("defaultSort", Enums.DefaultCollectionsSort));
 
             await cmd.ExecuteNonQueryAsync();
         }
