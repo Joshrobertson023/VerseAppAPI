@@ -94,7 +94,20 @@ namespace VerseAppAPI.Controllers
                 if (collection.NumVerses <= 0)
                     return Ok(collection);
 
-                var allReferences = collection.UserVerses.SelectMany(uv => ReferenceParse.GetIndividualVersesWithReference(uv.Reference))
+                Collection returnCollection = new Collection();
+
+                //// Parse reference and get list of all individual verses
+                //// Loop through and get each verse
+
+                //foreach (var userVerse in collection.UserVerses)
+                //{
+                //    List<string> individualReferences = ReferenceParse.GetIndividualVersesFromReference(userVerse.Reference);
+                //    userVerse.Verses = await verseDB.GetVersesByReferences(individualReferences);
+                //}
+
+                //List<string> allReferences = ReferenceParse.GetIndividualVersesFromReference(collection)
+
+                var allReferences = collection.UserVerses.SelectMany(uv => ReferenceParse.GetIndividualVersesFromReference(uv.Reference))
                                                          .Distinct().ToList();
 
                 var allVerses = await verseDB.GetVersesByReferences(allReferences);
@@ -103,12 +116,12 @@ namespace VerseAppAPI.Controllers
 
                 foreach (var userVerse in collection.UserVerses)
                 {
-                    var reference = ReferenceParse.GetIndividualVersesWithReference(userVerse.Reference);
+                    var reference = ReferenceParse.GetIndividualVersesFromReference(userVerse.Reference);
                     userVerse.Verses = reference.Where(r => versesByReference.TryGetValue(r, out _))
                                                 .Select(r => versesByReference[r]).ToList();
                 }
 
-                return Ok(collection);
+                return Ok(returnCollection);
             }
             catch (Exception ex)
             {

@@ -42,6 +42,24 @@ namespace VerseAppAPI.Controllers
             }
         }
 
+        [HttpPost("getuser")]
+        public async Task<IActionResult> GetUser([FromBody] string username)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                User returnUser = new User();
+                returnUser = await userDB.GetUserAsync(username);
+                sw.Stop();
+                Console.WriteLine($"GetUser total took {sw.ElapsedMilliseconds} ms");
+                return Ok(returnUser);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get user ", error = ex.Message });
+            }
+        }
+
         [HttpPost("passwordhash")]
         public async Task<IActionResult> GetPasswordHash([FromBody] string username)
         {
@@ -58,26 +76,8 @@ namespace VerseAppAPI.Controllers
             }
         }
 
-        [HttpPost("getuser")]
-        public async Task<IActionResult> GetUser([FromBody] string username)
-        {
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                UserModel returnUser = new UserModel();
-                returnUser = await userDB.GetUserDBAsync(username);
-                sw.Stop();
-                Console.WriteLine($"GetUser total took {sw.ElapsedMilliseconds} ms");
-                return Ok(returnUser);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Failed to get user ", error = ex.Message });
-            }
-        }
-
         [HttpPost("adduser")]
-        public async Task<IActionResult> AddUser([FromBody] UserModel newUser)
+        public async Task<IActionResult> AddUser([FromBody] User newUser)
         {
             try
             {
@@ -93,7 +93,7 @@ namespace VerseAppAPI.Controllers
         [HttpPost("loginwithtoken")]
         public async Task<IActionResult> LoginWithToken([FromBody] string token)
         {
-            UserModel returnUser = new UserModel();
+            User returnUser = new User();
 
             returnUser = await userDB.GetUserByTokenDBAsync(token);
 
@@ -325,6 +325,20 @@ namespace VerseAppAPI.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Failed to set user active ", error = ex.Message });
+            }
+        }
+
+        [HttpGet("getalluseres")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            try
+            {
+                List<User> users = await userDB.GetAllUsers();
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to get all users ", error = ex.Message });
             }
         }
     }

@@ -1,18 +1,19 @@
-﻿using VerseAppAPI.Models;
-using Oracle.ManagedDataAccess.Client;
-using DBAccessLibrary.Models;
+﻿using DBAccessLibrary.Models;
 using Microsoft.Extensions.Configuration;
+using Oracle.ManagedDataAccess.Client;
 using System.Diagnostics;
+using System.Xml.Linq;
+using VerseAppAPI.Models;
 
 namespace VerseAppAPI.Controllers
 {
     public class UserControllerDB
     {
-        public UserModel currentUser;
+        public User currentUser;
         public List<string> currentUserCategories = new List<string>();
         public List<string> usernames;
-        public Dictionary<UserModel, int> currentUserFriends = new Dictionary<UserModel, int>(); // friend, type
-        public List<UserModel> otherUserFriends = new List<UserModel>();
+        public Dictionary<User, int> currentUserFriends = new Dictionary<User, int>(); // friend, type
+        public List<User> otherUserFriends = new List<User>();
 
         #region connectionString
         private string connectionString;
@@ -28,21 +29,17 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                // 1) Warm up the pool: open one connection
                 OracleConnection conn = new OracleConnection(connectionString);
                 await conn.OpenAsync();
-                await conn.OpenAsync();  // pulls a session out of the pool
 
-                // 2) Do a minimal SELECT to bring index blocks into cache
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT /*WARMUP*/ USERNAME FROM USERS WHERE ROWNUM = 1";
-                // If you truly have only one row, ROWNUM=1 is fine; if you might have 0, use "SELECT 1 FROM DUAL"
+                cmd.CommandText = "SELECT USERNAME FROM USERS WHERE ROWNUM = 1";
                 _ = await cmd.ExecuteScalarAsync();
                 await WarmupAll();
             }
             catch
             {
-                // swallow any errors—this is just a best‐effort warm‐up
+                // swallow errors -- this is just a warm‐up
             }
         }
 
@@ -50,70 +47,70 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                // 1) Warm up the pool: open one connection
                 OracleConnection conn = new OracleConnection(connectionString);
                 await conn.OpenAsync();
-                await conn.OpenAsync();  // pulls a session out of the pool
 
-                // 2) Do a minimal SELECT to bring index blocks into cache
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT /*WARMUP*/ * FROM USERS WHERE ROWNUM = 1";
-                // If you truly have only one row, ROWNUM=1 is fine; if you might have 0, use "SELECT 1 FROM DUAL"
+                cmd.CommandText = "SELECT * FROM USERS WHERE ROWNUM = 1";
                 _ = await cmd.ExecuteScalarAsync();
             }
             catch
             {
-                // swallow any errors—this is just a best‐effort warm‐up
+
             }
         }
 
-        public async Task<UserModel> GetUserDBAsync(string username)
+        public async Task<User> GetUserAsync(string username)
         {
-            var connSw = Stopwatch.StartNew();
-            UserModel currentUser = new UserModel();
+            User currentUser = new User();
 
             string query = @"SELECT * FROM USERS WHERE USERNAME = :username";
 
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
-            connSw.Stop();
-            Console.WriteLine($"OpenAsync took {connSw.ElapsedMilliseconds} ms");
 
-            var cmdSw = Stopwatch.StartNew();
             OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("username", username));
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
 
-            string order = string.Empty;
             while (await reader.ReadAsync())
             {
-                currentUser.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                currentUser.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
-                currentUser.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                currentUser.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                if (!reader.HasRows)
+                    throw new Exception("No rows found for table USERS.");
+                if (!reader.IsDBNull(reader.GetOrdinal("USERNAME")))
+                    currentUser.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("F_NAME")))
+                    currentUser.FName = reader.GetString(reader.GetOrdinal("F_NAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("L_NAME")))
+                    currentUser.LName = reader.GetString(reader.GetOrdinal("L_NAME"));
                 if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
                     currentUser.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                if (!reader.IsDBNull(reader.GetOrdinal("AUTH_TOKEN")))
+                    currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
                 if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
                     currentUser.CollectionsSort = reader.GetInt32(reader.GetOrdinal("COLLECTIONS_SORT"));
                 if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_ORDER")))
-                    order = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
-                currentUser.PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
-                currentUser.Status = reader.GetString(reader.GetOrdinal("STATUS"));
-                currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
-                currentUser.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
+                    currentUser.CollectionsOrder = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
+                if (!reader.IsDBNull(reader.GetOrdinal("HASHED_PASSWORD")))
+                    currentUser.HashedPassword = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
+                if (!reader.IsDBNull(reader.GetOrdinal("STATUS")))
+                    currentUser.Status = (Enums.Status)reader.GetInt32(reader.GetOrdinal("STATUS"));
+                if (!reader.IsDBNull(reader.GetOrdinal("DATE_REGISTERED")))
+                    currentUser.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("LAST_SEEN")))
+                    currentUser.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
                 if (!reader.IsDBNull(reader.GetOrdinal("DESCRIPTION")))
                     currentUser.Description = reader.GetString(reader.GetOrdinal("DESCRIPTION"));
                 if (!reader.IsDBNull(reader.GetOrdinal("CURRENT_READING_PLAN")))
                     currentUser.CurrentReadingPlan = reader.GetInt32(reader.GetOrdinal("CURRENT_READING_PLAN"));
-                currentUser.IsDeleted = reader.GetInt32(reader.GetOrdinal("IS_DELETED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("ACCOUNT_DELETED")))
+                    currentUser.AccountDeleted = reader.GetInt32(reader.GetOrdinal("ACCOUNT_DELETED")) == 1 ? true : false;
                 if (!reader.IsDBNull(reader.GetOrdinal("REASON_DELETED")))
                     currentUser.ReasonDeleted = reader.GetString(reader.GetOrdinal("REASON_DELETED"));
-                currentUser.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED"));
-                currentUser.FollowVerseOfTheDay = reader.GetInt32(reader.GetOrdinal("FOLLOW_VERSE_OF_THE_DAY"));
-                currentUser.Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY"));
-                currentUser.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
-                if (!string.IsNullOrEmpty(order))
-                    currentUser.CollectionsOrder = order;
+                if (!reader.IsDBNull(reader.GetOrdinal("FLAGGED")))
+                    currentUser.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED")) == 1 ? true : false;
+                if (!reader.IsDBNull(reader.GetOrdinal("PROFILE_VISIBILITY")))
+                    currentUser.ProfileVisibility = reader.GetInt32(reader.GetOrdinal("PROFILE_VISIBILITY"));
             }
 
             conn.Close();
@@ -122,9 +119,9 @@ namespace VerseAppAPI.Controllers
             return currentUser;
         }
 
-        public async Task<UserModel> GetUserByTokenDBAsync(string token)
+        public async Task<User> GetUserByTokenDBAsync(string token)
         {
-            UserModel currentUser = new UserModel();
+            User currentUser = new User();
 
             string query = @"SELECT * FROM USERS WHERE AUTH_TOKEN = :token";
 
@@ -170,7 +167,7 @@ namespace VerseAppAPI.Controllers
             return currentUser;
         }
 
-        public async Task AddUserDBAsync(UserModel user)
+        public async Task AddUserDBAsync(User user)
         {
             string query = @"INSERT INTO USERS (USERNAME, FIRST_NAME, LAST_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER, COLLECTIONS_SORT)
                              VALUES (:username, :firstName, :lastName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, 'NONE', 0)";
@@ -195,7 +192,7 @@ namespace VerseAppAPI.Controllers
         public async Task<List<string>> GetAllUsernamesAsync()
         {
             usernames = new List<string>();
-            string query = @"SELECT USERNAME FROM USERS WHERE IS_DELETED = 0";
+            string query = @"SELECT USERNAME FROM USERS";
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             OracleCommand cmd = new OracleCommand(query, conn);
@@ -233,7 +230,7 @@ namespace VerseAppAPI.Controllers
         {
             // Update this function to get friends of user who's id is passed as parameter ^^^
 
-            currentUserFriends = new Dictionary<UserModel, int>(); // friend, type
+            currentUserFriends = new Dictionary<User, int>(); // friend, type
 
             string query = @"SELECT * FROM USERS";
 
@@ -245,7 +242,7 @@ namespace VerseAppAPI.Controllers
 
             while (await reader.ReadAsync())
             {
-                UserModel user = new UserModel
+                User user = new User
                 {
                     Id = reader.GetInt32(reader.GetOrdinal("USER_ID")),
                     Username = reader.GetString(reader.GetOrdinal("USERNAME")),
@@ -371,7 +368,6 @@ namespace VerseAppAPI.Controllers
 
         public async Task GetUserCategoriesDBAsync(int userId)
         {
-            //userVerses = new Dictionary<Verse, string>();
             currentUserCategories = new List<string>();
 
             string query = @"SELECT DISTINCT CATEGORY_NAME FROM USER_VERSES 
@@ -566,7 +562,6 @@ namespace VerseAppAPI.Controllers
             return notifications;
         }
 
-
         public async Task MarkNotificationAsRead(int notificationId)
         {
             string query = @"UPDATE USER_NOTIFICATIONS 
@@ -577,6 +572,46 @@ namespace VerseAppAPI.Controllers
             using OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<User>> GetAllUsers()
+        {
+            List<User> users = new List<User>();
+
+            string query = @"SELECT * FROM USERS";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var user = new User();
+
+                user.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
+                user.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                user.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
+                user.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                user.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                user.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
+                user.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
+                user.Description = reader.IsDBNull(reader.GetOrdinal("DESCRIPTION"))
+                               ? null
+                               : reader.GetString(reader.GetOrdinal("DESCRIPTION"));
+                user.IsDeleted = reader.GetInt32(reader.GetOrdinal("IS_DELETED"));
+                user.ReasonDeleted = reader.IsDBNull(reader.GetOrdinal("REASON_DELETED"))
+                               ? null
+                               : reader.GetString(reader.GetOrdinal("REASON_DELETED"));
+
+
+                users.Add(user);
+            }
+
+            conn.Close();
+            conn.Dispose();
+
+            return users;
         }
 
         public async Task DeleteNotification(int notificationId)

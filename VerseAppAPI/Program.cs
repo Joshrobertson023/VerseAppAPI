@@ -129,6 +129,28 @@ app.Lifetime.ApplicationStarted.Register(() =>
         // this will invoke all your Console.WriteLine()s inside GetUserVerseByKeywords
         await db.GetUserVerseByKeywords(keywords);
     });
+    Task.Run(async () =>
+    {
+        while (true)
+        {
+            // Delete all notifications a month old
+            try
+            {
+                using var conn = new OracleConnection(config.GetConnectionString("Default"));
+                await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "DELETE * FROM USER_NOFITICATIONS WHERE CREATED_DATE < SYSDATE - 30";
+                var result = await cmd.ExecuteScalarAsync();  // brings index blocks into cache
+                logger.LogInformation("Deleted notifications a month old.", result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to delete notifications a month old");
+            }
+
+            await Task.Delay(TimeSpan.FromHours(12));
+        }
+    });
 
 });
 

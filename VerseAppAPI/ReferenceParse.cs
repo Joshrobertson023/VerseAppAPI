@@ -116,8 +116,10 @@ namespace VerseAppAPI
             return returnList;
         }
 
-        public static List<string> GetIndividualVersesWithReference(string reference)
+        public static List<string> GetIndividualVersesFromReference(string reference)
         {
+            // This function is causing the error with long functions
+
             List<string> references = new List<string>();
 
             List<string> parts = ConvertToReferenceParts(reference);
