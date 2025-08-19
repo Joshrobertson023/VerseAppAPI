@@ -119,7 +119,7 @@ namespace VerseAppAPI.Controllers
             return currentUser;
         }
 
-        public async Task<User> GetUserByTokenDBAsync(string token)
+        public async Task<User> GetUserByTokenAsync(string token)
         {
             User currentUser = new User();
 
