@@ -20,5 +20,7 @@
 
         public const string DefaultCollectionsOrder = "none";
         public const CollectionsSort DefaultCollectionsSort = CollectionsSort.Newest;
+
+        //
     }
 }
