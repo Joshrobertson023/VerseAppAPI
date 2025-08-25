@@ -15,7 +15,6 @@ namespace VerseAppAPI.Models
         private string passwordHash;
         public string Token { get; set; }
         public int UserId { get; set; }
-        public int Id { get; set; }
         public string Username
         {
             get { return username; }

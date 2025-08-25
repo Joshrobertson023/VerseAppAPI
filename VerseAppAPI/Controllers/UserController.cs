@@ -81,7 +81,7 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                await userDB.AddUserDBAsync(newUser);
+                await userDB.AddUserAsync(newUser);
                 return NoContent();
             }
             catch (Exception ex)
@@ -95,7 +95,7 @@ namespace VerseAppAPI.Controllers
         {
             User returnUser = new User();
 
-            returnUser = await userDB.GetUserByTokenDBAsync(token);
+            returnUser = await userDB.GetUserByTokenAsync(token);
 
             return Ok(returnUser);
         }
@@ -305,7 +305,7 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                int exists = await userDB.CheckUsernameExists(username);
+                bool exists = await userDB.CheckIfUsernameExistsAsync(username);
                 return Ok(exists);
             }
             catch (Exception ex)

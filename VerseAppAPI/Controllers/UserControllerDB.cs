@@ -178,7 +178,7 @@ namespace VerseAppAPI.Controllers
             return currentUser;
         }
 
-        public async Task AddUserDBAsync(User user)
+        public async Task AddUserAsync(User user)
         {
             string query = @"INSERT INTO USERS (USERNAME, F_NAME, L_NAME, EMAIL, HASHED_PASSWORD, AUTH_TOKEN, STATUS, DATE_REGISTERED, LAST_SEEN, COLLECTIONS_ORDER, COLLECTIONS_SORT)
                              VALUES (:username, :fName, :lName, :email, :userPassword, :token, :status, SYSDATE, SYSDATE, :defaultOrder, defaultSort)";
@@ -220,11 +220,10 @@ namespace VerseAppAPI.Controllers
             return usernames;
         }
 
-        public async Task<int> CheckUsernameExists(string username)
+        public async Task<bool> CheckIfUsernameExistsAsync(string username)
         {
-            int exists = 0;
-            string query = @"SELECT 1 FROM USERS WHERE USERNAME = :username AND
-                                IS_DELETED = 0";
+            bool exists = false;
+            string query = @"SELECT 1 FROM USERS WHERE USERNAME = :username";
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             OracleCommand cmd = new OracleCommand(query, conn);
@@ -232,14 +231,15 @@ namespace VerseAppAPI.Controllers
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync()) 
             {
-                exists = 1; // If we read a row, the username exists
+                exists = true;
             }
             conn.Close();
             conn.Dispose();
             return exists;
         }
 
-        public async Task GetUserFriendsDBAsync(int userId)
+        /*
+        public async Task GetUserFriendsDBAsync(string username)
         {
             // Update this function to get friends of user who's id is passed as parameter ^^^
 
@@ -269,60 +269,64 @@ namespace VerseAppAPI.Controllers
             conn.Close();
             conn.Dispose();
         }
+        */
 
-        public async Task<List<RecoveryInfo>> GetRecoveryInfoDBAsync()
+        // This function is not used anymore
+        //public async Task<List<RecoveryInfo>> GetRecoveryInfoAsync()
+        //{
+        //    List<RecoveryInfo> recoveryInfo = new List<RecoveryInfo>();
+
+        //    string query = @"SELECT USERNAME, FIRST_NAME, LAST_NAME, HASHED_PASSWORD, EMAIL FROM USERS";
+
+        //    OracleConnection conn = new OracleConnection(connectionString);
+        //    await conn.OpenAsync();
+
+        //    OracleCommand cmd = new OracleCommand(query, conn);
+        //    OracleDataReader reader = await cmd.ExecuteReaderAsync();
+
+        //    while (await reader.ReadAsync())
+        //    {
+        //        var rec = new RecoveryInfo
+        //        {
+        //            Username = reader.GetString(reader.GetOrdinal("USERNAME")),
+        //            FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME")),
+        //            LastName = reader.GetString(reader.GetOrdinal("LAST_NAME")),
+        //            PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD")),
+        //            Email = reader.IsDBNull(reader.GetOrdinal("EMAIL"))
+        //                           ? null
+        //                           : reader.GetString(reader.GetOrdinal("EMAIL"))
+        //        };
+        //        recoveryInfo.Add(rec);
+        //    }
+
+        //    conn.Close();
+
+        //    return recoveryInfo;
+        //}
+
+        public async Task<PasswordRecoveryInfo> GetPasswordRecoveryInfoAsync(string username, string email)
         {
-            List<RecoveryInfo> recoveryInfo = new List<RecoveryInfo>();
+            PasswordRecoveryInfo passwordRecoveryInfo = new();
 
-            string query = @"SELECT USER_ID, FIRST_NAME, LAST_NAME, USERNAME, HASHED_PASSWORD, EMAIL FROM USERS WHERE IS_DELETED = 0";
+            string query = @"SELECT * FROM USERS WHERE USERNAME = :username AND EMAIL = :email";
 
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
-
-            OracleCommand cmd = new OracleCommand(query, conn);
-            OracleDataReader reader = await cmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
-            {
-                var rec = new RecoveryInfo
-                {
-                    Id = reader.GetInt32(reader.GetOrdinal("USER_ID")),
-                    FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME")),
-                    LastName = reader.GetString(reader.GetOrdinal("LAST_NAME")),
-                    Username = reader.GetString(reader.GetOrdinal("USERNAME")),
-                    PasswordHash = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD")),
-                    Email = reader.IsDBNull(reader.GetOrdinal("EMAIL"))
-                                   ? null
-                                   : reader.GetString(reader.GetOrdinal("EMAIL"))
-                };
-                recoveryInfo.Add(rec);
-            }
-
-            conn.Close();
-            conn.Dispose();
-
-            return recoveryInfo;
-        }
-
-        public async Task<string> GetSecurityQuestionDBAsync(string username)
-        {
-            string returnString = "";
-
-            string query = @"SELECT SECURITY_QUESTION FROM USERS WHERE USERNAME = :username";
-
-            OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
             OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("username", username));
+            cmd.Parameters.Add(new OracleParameter("email", email));
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
-
             while (await reader.ReadAsync())
             {
-                returnString = reader.GetString(reader.GetOrdinal("SECURITY_QUESTION"));
+                passwordRecoveryInfo.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                passwordRecoveryInfo.FName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
+                passwordRecoveryInfo.LName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                passwordRecoveryInfo.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                passwordRecoveryInfo.HashedPassword = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
             }
+            conn.Close();
 
-            return returnString;
+            return passwordRecoveryInfo;
         }
 
         public async Task<string> GetPasswordHashDBAsync(string username)
@@ -362,20 +366,6 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("token", token));
             cmd.Parameters.Add(new OracleParameter("username", username));
 
-            await cmd.ExecuteNonQueryAsync();
-            await AddUserForgotPasswordDBAsync(username);
-        }
-        public async Task AddUserForgotPasswordDBAsync(string username)
-        {
-            string query = @"UPDATE USERS 
-                             SET FORGOT_PASSWORD = FORGOT_PASSWORD + 1 
-                             WHERE USERNAME = :username";
-
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("username", username));
             await cmd.ExecuteNonQueryAsync();
         }
 
