@@ -18,6 +18,14 @@
             Custom = 4
         };
 
+        public enum NotificationType
+        {
+            Single = 0,
+            AllUsers = 1,
+            Admins = 2,
+            VerseOfTheDay = 3,
+        }
+
         public const string DefaultCollectionsOrder = "none";
         public const CollectionsSort DefaultCollectionsSort = CollectionsSort.Newest;
 

@@ -352,7 +352,7 @@ namespace VerseAppAPI.Controllers
             return returnString;
         }
 
-        public async Task ResetUserPasswordDBAsync(string username, string token)
+        public async Task ResetUserPasswordAsync(string username, string token)
         {
             string query = @"INSERT INTO PASSWORD_RESETS (TOKEN, USERNAME, SENT)
                              VALUES (:token, :username, SYSDATE)";
@@ -369,125 +369,74 @@ namespace VerseAppAPI.Controllers
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task GetUserCategoriesDBAsync(int userId)
-        {
-            currentUserCategories = new List<string>();
-
-            string query = @"SELECT DISTINCT CATEGORY_NAME FROM USER_VERSES 
-                             WHERE USER_ID = :userId";
-
-            OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            try
-            {
-                OracleCommand cmd = new OracleCommand(query, conn);
-                cmd.Parameters.Add(new OracleParameter("userId", userId));
-                OracleDataReader reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    string category = reader.GetString(reader.GetOrdinal("CATEGORY"));
-
-                    currentUserCategories.Add(category);
-                }
-            }
-            catch (Exception ex)
-            {
-                conn.Close();
-                conn.Dispose();
-                return;
-            }
-            conn.Close();
-            conn.Dispose();
-        }
-
-        public async Task SetUserActiveDBAsync(int userId)
+        public async Task SetUserActiveAsync(string username)
         {
             string query = @"UPDATE USERS 
                              SET LAST_SEEN = SYSDATE 
-                             WHERE USER_ID = :userId";
+                             WHERE USERNAME = :username";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
 
             using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("userId", userId));
+            cmd.Parameters.Add(new OracleParameter("username", username));
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task UpdateUserPasswordDBAsync(int userId, string passwordHash)
+        public async Task UpdateUserPasswordAsync(string username, string passwordHash)
         {
             if (passwordHash == null)
                 throw new ArgumentException("Fatal error updating password. Value was null.");
 
             string query = @"UPDATE USERS 
                              SET HASHED_PASSWORD = :newHash 
-                             WHERE USER_ID = :userId";
+                             WHERE USERNAME = :username";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
 
             using OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("newHash", passwordHash));
-            cmd.Parameters.Add(new OracleParameter("userId", userId));
-            await cmd.ExecuteNonQueryAsync();
-            await UpdateUserChangedPasswordDBAsync(userId);
-        }
-
-        public async Task<int> GetIdFromUsername(string username)
-        {
-            int userId = 0;
-            int rowCount = 0;
-
-            string query = @"SELECT USER_ID FROM USERS 
-                             WHERE USERNAME = :username";
-
-            OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("username", username));
-            OracleDataReader reader = await cmd.ExecuteReaderAsync();
-
-
-            while (await reader.ReadAsync())
-            {
-                rowCount++;
-                if (rowCount == 1)
-                {
-                    userId = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Expected at most one row for username='{username}', but found multiple.");
-                }
-                userId = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-            }
-
-            conn.Close();
-            conn.Dispose();
-            return userId;
-        }
-
-        public async Task UpdateUserChangedPasswordDBAsync(int userId)
-        {
-            if (userId == null)
-                throw new ArgumentException("Fatal error setting user as active. User was null.");
-
-            string query = @"UPDATE USERS 
-                             SET CHANGED_PASSWORD = CHANGED_PASSWORD + 1 
-                             WHERE USER_ID = :userId";
-
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("userId", userId));
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task<bool> VerifyTokenDBAsync(string username, string token)
+        //public async Task<int> GetIdFromUsername(string username)
+        //{
+        //    int userId = 0;
+        //    int rowCount = 0;
+
+        //    string query = @"SELECT USER_ID FROM USERS 
+        //                     WHERE USERNAME = :username";
+
+        //    OracleConnection conn = new OracleConnection(connectionString);
+        //    await conn.OpenAsync();
+
+        //    OracleCommand cmd = new OracleCommand(query, conn);
+        //    cmd.Parameters.Add(new OracleParameter("username", username));
+        //    OracleDataReader reader = await cmd.ExecuteReaderAsync();
+
+
+        //    while (await reader.ReadAsync())
+        //    {
+        //        rowCount++;
+        //        if (rowCount == 1)
+        //        {
+        //            userId = reader.GetInt32(reader.GetOrdinal("USER_ID"));
+        //        }
+        //        else
+        //        {
+        //            throw new InvalidOperationException($"Expected at most one row for username='{username}', but found multiple.");
+        //        }
+        //        userId = reader.GetInt32(reader.GetOrdinal("USER_ID"));
+        //    }
+
+        //    conn.Close();
+        //    conn.Dispose();
+        //    return userId;
+        //}
+
+        public async Task<bool> VerifyTokenAsync(string username, string token)
         {
             currentUserCategories = new List<string>();
 
@@ -518,16 +467,12 @@ namespace VerseAppAPI.Controllers
             return true;
         }
 
-        public string everyoneUsername = "jUW=f<9m!'2kgegw3g";
-
         public async Task<List<Notification>> GetUserNotifications(string username)
         {
             var notifications = new List<Notification>();
-            const string query = @"
-                                    SELECT *
+            const string query = @"SELECT *
                                       FROM USER_NOTIFICATIONS
-                                     WHERE USERNAME         = :username
-                                        OR USERNAME         = :everyoneUsername
+                                     WHERE USERNAME = :username
                                      ORDER BY CREATED_DATE DESC";
 
             using var conn = new OracleConnection(connectionString);
@@ -535,7 +480,6 @@ namespace VerseAppAPI.Controllers
 
             using var cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("username", username));
-            cmd.Parameters.Add(new OracleParameter("everyoneUsername", everyoneUsername));
 
             using var reader = await cmd.ExecuteReaderAsync();
 

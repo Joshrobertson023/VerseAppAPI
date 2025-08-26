@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VerseAppAPI;
 
 namespace DBAccessLibrary.Models
 {
@@ -10,10 +11,9 @@ namespace DBAccessLibrary.Models
     {
         public int Id { get; set; }
         public string Title { get; set; }
-        public string Message { get; set; }
-        public int Seen { get; set; }
+        public Enums.NotificationType Type { get; set; }
+        public string Text { get; set; }
         public DateTime DateCreated { get; set; }
-        public string Username { get; set; }
         public string SentBy { get; set; }
     }
 }
