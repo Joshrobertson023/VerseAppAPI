@@ -467,6 +467,124 @@ namespace VerseAppAPI.Controllers
             return true;
         }
 
+        public async Task<List<string>> GetAdminUsernamesAsync()
+        {
+            List<string> adminUsernames = new();
+            string query = @"SELECT USERNAME FROM ADMINS";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                adminUsernames.Add(username);
+            }
+            conn.Close();
+            conn.Dispose();
+            return adminUsernames;
+        }
+
+        public async Task<List<string>> GetUsersSubscribedToVerseOfDayAsync()
+        {
+            List<string> subscribedUsernames = new();
+            string query = @"SELECT USERNAME FROM USERS WHERE SUBSCRIBED_VERSE_OF_DAY = 1";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            OracleDataReader reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                subscribedUsernames.Add(username);
+            }
+            conn.Close();
+            conn.Dispose();
+            return subscribedUsernames;
+        }
+
+        #region Notifications
+        public async Task AddNotification(Notification notification)
+        {
+            string query = @"INSERT INTO NOTIFICATIONS (TITLE, TYPE, RECEIVING_USER, TEXT, CREATED_DATE, SENT_BY) 
+                             VALUES (:title, :type, :receivingUser, :text, SYSDATE, sentBy) RETURNING NOTIFICATION_ID INTO :notificationId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
+            cmd.Parameters.Add(new OracleParameter("title", notification.Title));
+            cmd.Parameters.Add(new OracleParameter("type", (int)notification.Type));
+            cmd.Parameters.Add(new OracleParameter("receivingUser", notification.ReceivingUser));
+            cmd.Parameters.Add(new OracleParameter("text", notification.Text));
+            cmd.Parameters.Add(new OracleParameter("sentBy", notification.SentBy));
+            notification.Id = Convert.ToInt32(new OracleParameter("notificationId", OracleDbType.Int32, System.Data.ParameterDirection.ReturnValue));
+            await cmd.ExecuteNonQueryAsync();
+
+            if (notification.Type == Enums.NotificationType.Single)
+            {
+                await AddSingleUserNotification(notification);
+            }
+            else
+            {
+                await AddMultipleUsersNotification(notification);
+            }
+
+            conn.Close();
+            conn.Dispose();
+        }
+
+        public async Task AddSingleUserNotification(Notification notification)
+        {
+            string query = @"INSERT INTO USER_NOTIFICATIONS (NOTIFICATION_ID, USERNAME, SEEN)
+                             VALUES (:notificationId, :username, :seen)";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.BindByName = true;
+            cmd.Parameters.Add(new OracleParameter("notificationId", notification.Id));
+            cmd.Parameters.Add(new OracleParameter("username", notification.ReceivingUser));
+            cmd.Parameters.Add(new OracleParameter("seen", 0));
+            await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
+        }
+
+        public async Task AddMultipleUsersNotification(Notification notification)
+        {
+            List<string> usernamesToSend;
+
+            switch (notification.Type)
+            { 
+                case Enums.NotificationType.AllUsers:
+                    usernamesToSend = await GetAllUsernamesAsync();
+                    break;
+                case Enums.NotificationType.Admins:
+                    usernamesToSend = await GetAdminUsernamesAsync();
+                    break;
+                case Enums.NotificationType.VerseOfTheDay:
+                    usernamesToSend = await GetUsersSubscribedToVerseOfDayAsync();
+                    break;
+                default:
+                    usernamesToSend = new List<string>();
+                    throw new ArgumentException("Invalid notification type for multiple users.");
+            }
+            
+            string query = @"INSERT INTO USER_NOTIFICATIONS (NOTIFICATION_ID, USERNAME, SEEN)";
+
+            foreach (var username in usernamesToSend)
+            {
+                query += $" VALUES ({notification.Id}, '{username}', 0),";
+            }
+
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query.TrimEnd(','), conn);
+            cmd.BindByName= true;
+            await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
+        }
+
         public async Task<List<Notification>> GetUserNotifications(string username)
         {
             var notifications = new List<Notification>();
@@ -509,6 +627,17 @@ namespace VerseAppAPI.Controllers
             return notifications;
         }
 
+        public async Task DeleteNotification(int notificationId)
+        {
+            string query = @"DELETE FROM USER_NOTIFICATIONS 
+                             WHERE NOTIFICATION_ID = :notificationId";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task MarkNotificationAsRead(int notificationId)
         {
             string query = @"UPDATE USER_NOTIFICATIONS 
@@ -520,6 +649,7 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
             await cmd.ExecuteNonQueryAsync();
         }
+        #endregion
 
         public async Task<List<User>> GetAllUsers()
         {
@@ -559,32 +689,6 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
 
             return users;
-        }
-
-        public async Task DeleteNotification(int notificationId)
-        {
-            string query = @"DELETE FROM USER_NOTIFICATIONS 
-                             WHERE NOTIFICATION_ID = :notificationId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
-            await cmd.ExecuteNonQueryAsync();
-        }
-
-        public async Task SendNotification(Notification notification)
-        {
-            string query = @"INSERT INTO USER_NOTIFICATIONS (NOTIFICATION_TITLE, NOTIFICATION_TEXT, USERNAME, SENT_BY, SEEN, CREATED_DATE) 
-                             VALUES (:title, :message, :username, :sentBy, 0, SYSDATE)";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.BindByName = true;
-            cmd.Parameters.Add(new OracleParameter("title", notification.Title));
-            cmd.Parameters.Add(new OracleParameter("message", notification.Message));
-            cmd.Parameters.Add(new OracleParameter("username", notification.Username));
-            cmd.Parameters.Add(new OracleParameter("sentBy", notification.SentBy));
-            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task<List<EmailNotification>> GetAllUserEmailsAsync()

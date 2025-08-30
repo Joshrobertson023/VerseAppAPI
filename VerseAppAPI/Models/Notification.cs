@@ -15,5 +15,6 @@ namespace DBAccessLibrary.Models
         public string Text { get; set; }
         public DateTime DateCreated { get; set; }
         public string SentBy { get; set; }
+        public string ReceivingUser { get; set; }
     }
 }
