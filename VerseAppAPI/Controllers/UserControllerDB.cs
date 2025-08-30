@@ -587,44 +587,9 @@ namespace VerseAppAPI.Controllers
 
         public async Task<List<Notification>> GetUserNotifications(string username)
         {
-            var notifications = new List<Notification>();
-            const string query = @"SELECT *
-                                      FROM USER_NOTIFICATIONS
-                                     WHERE USERNAME = :username
-                                     ORDER BY CREATED_DATE DESC";
-
-            using var conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-
-            using var cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("username", username));
-
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            int idxId = reader.GetOrdinal("NOTIFICATION_ID");
-            int idxTitle = reader.GetOrdinal("NOTIFICATION_TITLE");
-            int idxText = reader.GetOrdinal("NOTIFICATION_TEXT");
-            int idxUser = reader.GetOrdinal("USERNAME");
-            int idxSeen = reader.GetOrdinal("SEEN");
-            int idxSentBy = reader.GetOrdinal("SENT_BY");
-            int idxCreated = reader.GetOrdinal("CREATED_DATE");
-
-            while (await reader.ReadAsync())
-            {
-                var not = new Notification
-                {
-                    Id = reader.GetInt32(idxId),
-                    Title = reader.IsDBNull(idxTitle) ? null : reader.GetString(idxTitle),
-                    Message = reader.IsDBNull(idxText) ? null : reader.GetString(idxText),
-                    Username = reader.IsDBNull(idxUser) ? null : reader.GetString(idxUser),
-                    Seen = reader.GetInt32(idxSeen),
-                    SentBy = reader.IsDBNull(idxSentBy) ? null : reader.GetString(idxSentBy),
-                    DateCreated = reader.GetDateTime(idxCreated)
-                };
-                notifications.Add(not);
-            }
-
-            return notifications;
+            // Get user_notifications
+            // Use notification id to get notification details from notifications table
+            
         }
 
         public async Task DeleteNotification(int notificationId)
