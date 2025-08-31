@@ -103,43 +103,30 @@ namespace VerseAppAPI.Controllers
         [HttpPost("putresettoken")]
         public async Task<IActionResult> PutResetToken([FromBody] RecoveryInfo recovery)
         {
-            await userDB.ResetUserPasswordDBAsync(recovery.Username, recovery.Token);
+            await userDB.ResetUserPasswordAsync(recovery.Username, recovery.Token);
             return NoContent();
         }
 
         [HttpPost("verifytoken")]
         public async Task<IActionResult> VerifyToken([FromBody] ResetPassword reset)
         {
-            return Ok(await userDB.VerifyTokenDBAsync(reset.Username, reset.Token));
+            return Ok(await userDB.VerifyTokenAsync(reset.Username, reset.Token));
         }
 
         [HttpPost("updatepassword")]
         public async Task<IActionResult> UpdateUserPassword([FromBody] ResetPassword reset)
         {
-            await userDB.UpdateUserPasswordDBAsync(reset.Id, reset.PasswordHash);
+            await userDB.UpdateUserPasswordAsync(reset.Username, reset.PasswordHash);
             return NoContent();
         }
 
-        [HttpPost("getidfromusername")]
-        public async Task<IActionResult> GetIdFromUsername([FromBody] string username)
-        {
-            try
-            {
-                return Ok(await userDB.GetIdFromUsername(username));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Failed to get userId ", error = ex.Message });
-            }
-        }
-
         [HttpGet("getrecoveryinfo")]
-        public async Task<IActionResult> GetRecoveryInfo()
+        public async Task<IActionResult> GetRecoveryInfo([FromBody] ResetPassword reset)
         {
             try
             {
-                List<RecoveryInfo> recovery = new List<RecoveryInfo>();
-                recovery = await userDB.GetRecoveryInfoDBAsync();
+                PasswordRecoveryInfo recovery = new PasswordRecoveryInfo();
+                recovery = await userDB.GetPasswordRecoveryInfoAsync(reset.Username, reset.Email);
                 return Ok(recovery);
             }
             catch (Exception ex)
@@ -173,7 +160,7 @@ namespace VerseAppAPI.Controllers
 
                 await smtp.SendMailAsync(emailMessage);
 
-                await userDB.ResetUserPasswordDBAsync(reset.Username, token);
+                await userDB.ResetUserPasswordAsync(reset.Username, token);
                 return Ok();
             }
             catch (SmtpException smtpEx)
@@ -235,7 +222,7 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                await userDB.SendNotification(notification);
+                await userDB.AddNotification(notification);
                 return NoContent();
             }
             catch (Exception ex)
@@ -245,7 +232,7 @@ namespace VerseAppAPI.Controllers
         }
 
         [HttpPost("sendemailnotification")]
-        public async Task<IActionResult> SendEmailNotification([FromBody] Notification notification)
+        public async Task<IActionResult> SendEmailNotification([FromBody] EmailNotification notification)
         {
             try
             {
@@ -315,11 +302,11 @@ namespace VerseAppAPI.Controllers
         }
 
         [HttpPost("setuseractive")]
-        public async Task<IActionResult> SetUserActive([FromBody] int userId)
+        public async Task<IActionResult> SetUserActive([FromBody] string username)
         {
             try
             {
-                await userDB.SetUserActive(userId);
+                await userDB.SetUserActive(username);
                 return NoContent();
             }
             catch (Exception ex)
