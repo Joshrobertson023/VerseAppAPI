@@ -589,7 +589,33 @@ namespace VerseAppAPI.Controllers
         {
             // Get user_notifications
             // Use notification id to get notification details from notifications table
-            
+            List<Notification> notifications = new List<Notification>();
+            string query = @"SELECT UN.NOTIFICATION_ID, N.TITLE, N.TYPE, N.TEXT, N.CREATED_DATE, N.SENT_BY, UN.SEEN
+                             FROM USER_NOTIFICATIONS UN
+                             JOIN NOTIFICATIONS N ON UN.NOTIFICATION_ID = N.NOTIFICATION_ID
+                             WHERE UN.USERNAME = :username
+                             ORDER BY N.CREATED_DATE DESC";
+            using OracleConnection conn = new OracleConnection(connectionString);
+            await conn.OpenAsync();
+            using OracleCommand cmd = new OracleCommand(query, conn);
+            cmd.Parameters.Add(new OracleParameter("username", username));
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (reader.Read())
+            {
+                var notification = new Notification
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("NOTIFICATION_ID")),
+                    Title = reader.GetString(reader.GetOrdinal("TITLE")),
+                    Type = (Enums.NotificationType)reader.GetInt32(reader.GetOrdinal("TYPE")),
+                    Text = reader.GetString(reader.GetOrdinal("TEXT")),
+                    DateCreated = reader.GetDateTime(reader.GetOrdinal("CREATED_DATE")),
+                    SentBy = reader.GetString(reader.GetOrdinal("SENT_BY")),
+                };
+                notifications.Add(notification);
+            }
+            conn.Close();
+            conn.Dispose();
+            return notifications;
         }
 
         public async Task DeleteNotification(int notificationId)
@@ -601,6 +627,13 @@ namespace VerseAppAPI.Controllers
             using OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
             await cmd.ExecuteNonQueryAsync();
+            string query2 = @"DELETE FROM NOTIFICATIONS 
+                             WHERE NOTIFICATION_ID = :notificationId";
+            using OracleCommand cmd2 = new OracleCommand(query2, conn);
+            cmd2.Parameters.Add(new OracleParameter("notificationId", notificationId));
+            await cmd2.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
         }
 
         public async Task MarkNotificationAsRead(int notificationId)
@@ -613,6 +646,8 @@ namespace VerseAppAPI.Controllers
             using OracleCommand cmd = new OracleCommand(query, conn);
             cmd.Parameters.Add(new OracleParameter("notificationId", notificationId));
             await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
         }
         #endregion
 
@@ -631,21 +666,42 @@ namespace VerseAppAPI.Controllers
             {
                 var user = new User();
 
-                user.Id = reader.GetInt32(reader.GetOrdinal("USER_ID"));
-                user.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
-                user.FirstName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                user.LastName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
-                user.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
-                user.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
-                user.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
-                user.Description = reader.IsDBNull(reader.GetOrdinal("DESCRIPTION"))
-                               ? null
-                               : reader.GetString(reader.GetOrdinal("DESCRIPTION"));
-                user.IsDeleted = reader.GetInt32(reader.GetOrdinal("IS_DELETED"));
-                user.ReasonDeleted = reader.IsDBNull(reader.GetOrdinal("REASON_DELETED"))
-                               ? null
-                               : reader.GetString(reader.GetOrdinal("REASON_DELETED"));
-
+                if (!reader.HasRows)
+                    throw new Exception("No rows found for table USERS.");
+                if (!reader.IsDBNull(reader.GetOrdinal("USERNAME")))
+                    user.Username = reader.GetString(reader.GetOrdinal("USERNAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("F_NAME")))
+                    user.FName = reader.GetString(reader.GetOrdinal("F_NAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("L_NAME")))
+                    user.LName = reader.GetString(reader.GetOrdinal("L_NAME"));
+                if (!reader.IsDBNull(reader.GetOrdinal("EMAIL")))
+                    user.Email = reader.GetString(reader.GetOrdinal("EMAIL"));
+                if (!reader.IsDBNull(reader.GetOrdinal("AUTH_TOKEN")))
+                    user.AuthToken = reader.GetString(reader.GetOrdinal("AUTH_TOKEN"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_SORT")))
+                    user.CollectionsSort = reader.GetInt32(reader.GetOrdinal("COLLECTIONS_SORT"));
+                if (!reader.IsDBNull(reader.GetOrdinal("COLLECTIONS_ORDER")))
+                    user.CollectionsOrder = reader.GetString(reader.GetOrdinal("COLLECTIONS_ORDER"));
+                if (!reader.IsDBNull(reader.GetOrdinal("HASHED_PASSWORD")))
+                    user.HashedPassword = reader.GetString(reader.GetOrdinal("HASHED_PASSWORD"));
+                if (!reader.IsDBNull(reader.GetOrdinal("STATUS")))
+                    user.Status = (Enums.Status)reader.GetInt32(reader.GetOrdinal("STATUS"));
+                if (!reader.IsDBNull(reader.GetOrdinal("DATE_REGISTERED")))
+                    user.DateRegistered = reader.GetDateTime(reader.GetOrdinal("DATE_REGISTERED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("LAST_SEEN")))
+                    user.LastSeen = reader.GetDateTime(reader.GetOrdinal("LAST_SEEN"));
+                if (!reader.IsDBNull(reader.GetOrdinal("DESCRIPTION")))
+                    user.Description = reader.GetString(reader.GetOrdinal("DESCRIPTION"));
+                if (!reader.IsDBNull(reader.GetOrdinal("CURRENT_READING_PLAN")))
+                    user.CurrentReadingPlan = reader.GetInt32(reader.GetOrdinal("CURRENT_READING_PLAN"));
+                if (!reader.IsDBNull(reader.GetOrdinal("ACCOUNT_DELETED")))
+                    user.AccountDeleted = reader.GetInt32(reader.GetOrdinal("ACCOUNT_DELETED")) == 1 ? true : false;
+                if (!reader.IsDBNull(reader.GetOrdinal("REASON_DELETED")))
+                    user.ReasonDeleted = reader.GetString(reader.GetOrdinal("REASON_DELETED"));
+                if (!reader.IsDBNull(reader.GetOrdinal("FLAGGED")))
+                    user.Flagged = reader.GetInt32(reader.GetOrdinal("FLAGGED")) == 1 ? true : false;
+                if (!reader.IsDBNull(reader.GetOrdinal("PROFILE_VISIBILITY")))
+                    user.ProfileVisibility = reader.GetInt32(reader.GetOrdinal("PROFILE_VISIBILITY"));
 
                 users.Add(user);
             }
@@ -659,15 +715,15 @@ namespace VerseAppAPI.Controllers
         public async Task<List<EmailNotification>> GetAllUserEmailsAsync()
         {
             List<EmailNotification> emails = new List<EmailNotification>();
-            string query = @"SELECT EMAIL, USERNAME, FIRST_NAME, LAST_NAME FROM USERS WHERE IS_DELETED = 0 AND EMAIL IS NOT NULL";
+            string query = @"SELECT EMAIL, USERNAME, F_NAME, L_NAME FROM USERS";
             OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             OracleCommand cmd = new OracleCommand(query, conn);
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                string fName = reader.GetString(reader.GetOrdinal("FIRST_NAME"));
-                string lName = reader.GetString(reader.GetOrdinal("LAST_NAME"));
+                string fName = reader.GetString(reader.GetOrdinal("F_NAME"));
+                string lName = reader.GetString(reader.GetOrdinal("L_NAME"));
                 var email = new EmailNotification
                 {
                     Email = reader.GetString(reader.GetOrdinal("EMAIL")),
@@ -681,18 +737,18 @@ namespace VerseAppAPI.Controllers
             return emails;
         }
 
-        public async Task SetUserActive(int userId)
+        public async Task SetUserActive(string username)
         {
-            if (userId <= 0)
-                throw new ArgumentException("Invalid user ID provided.");
             string query = @"UPDATE USERS 
                              SET LAST_SEEN = SYSDATE 
-                             WHERE USER_ID = :userId";
+                             WHERE USERNAME = :username";
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("userId", userId));
+            cmd.Parameters.Add(new OracleParameter("username", username));
             await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            conn.Dispose();
         }
     }
 }
