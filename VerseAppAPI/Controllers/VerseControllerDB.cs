@@ -404,7 +404,7 @@ namespace VerseAppAPI.Controllers
 
         public async Task AddNewCollection(Collection collection)
         {
-            string query = @"INSERT INTO COLLECTIONS (AUTHOR, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES, USER_ID, DATE_CREATED, VERSE_ORDER, PINNED) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves, :userId, SYSDATE, :verseOrder, :pinned)";
+            string query = @"INSERT INTO COLLECTIONS (AUTHOR_USERNAME, TITLE, NUM_VERSES, VISIBILITY, IS_PUBLISHED, NUM_SAVES, DATE_CREATED, VERSE_ORDER) VALUES (:author, :title, :numVerses, :visibility, :isPublished, :numSaves, SYSDATE, :verseOrder)";
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
@@ -413,55 +413,45 @@ namespace VerseAppAPI.Controllers
             cmd.Parameters.Add(new OracleParameter("title", collection.Title));
             cmd.Parameters.Add(new OracleParameter("numVerses", collection.NumVerses));
             cmd.Parameters.Add(new OracleParameter("visibility", collection.Visibility));
-            cmd.Parameters.Add(new OracleParameter("userId", collection.UserId));
             cmd.Parameters.Add(new OracleParameter("verseOrder", collection.VerseOrder));
             cmd.Parameters.Add(new OracleParameter("isPublished", (object)0));
             cmd.Parameters.Add(new OracleParameter("numSaves", (object)0));
-            cmd.Parameters.Add(new OracleParameter("pinned", collection.Pinned));
             await cmd.ExecuteNonQueryAsync();
             conn.Close();
             conn.Dispose();
         }
 
-        public async Task<List<Collection>> GetUserCollections(int userId)
+        public async Task<List<Collection>> GetUserCollections(string username)
         {
             List<Collection> collections = new List<Collection>();
 
-            string query =
-                @"      SELECT
-                        c.collection_id,
-                        c.date_created,
-                        c.last_practiced   AS c_last_practiced,
-                        c.progress_percent AS c_progress_percent,
-                        c.author,
-                        c.title,
-                        c.num_verses,
-                        c.visibility,
-                        c.is_published,
-                        c.num_saves,
-                        c.user_id,
-                        c.pinned,
-                        c.verse_order,
-                        uv.verse_id,
-                        uv.user_id,
-                        uv.reference,
-                        uv.last_practiced,
-                        uv.date_memorized,
-                        uv.progress_percent,
-                        uv.times_reviewed,
-                        uv.times_memorized,
-                        uv.date_saved
-                      FROM collections c
-                      LEFT JOIN user_verses uv
-                        ON c.collection_id = uv.collection_id
-                        AND uv.user_id      = :userId
-                      WHERE c.user_id    = :userId
-                      ORDER BY c.collection_id DESC";
+            string query = @"SELECT
+                                c.collection_id,
+                                c.date_created,
+                                c.author_username,
+                                c.title,
+                                c.visibility,
+                                c.is_published,
+                                c.num_saves,
+                                c.verse_order,
+                                uv.user_verse_id,
+                                uv.username,
+                                uv.readable_reference,
+                                uv.last_practiced,
+                                uv.progress_percent,
+                                uv.times_memorized,
+                                uv.date_saved
+                              FROM collections c
+                              LEFT JOIN user_verses uv
+                                ON c.collection_id = uv.collection_id
+                                AND uv.username      = :username
+                              WHERE c.username    = :username
+                              ORDER BY c.collection_id DESC";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("userId", userId));
+            cmd.Parameters.Add(new OracleParameter("username", username));
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
 
             Collection newCollection = new Collection();
@@ -474,17 +464,13 @@ namespace VerseAppAPI.Controllers
                     newCollection = new Collection
                     {
                         Id = collectionId,
-                        Author = reader.GetString(reader.GetOrdinal("AUTHOR")),
-                        UserId = reader.GetInt32(reader.GetOrdinal("USER_ID")),
+                        Author = reader.GetString(reader.GetOrdinal("AUTHOR_USERNAME")),
                         DateCreated = reader.GetDateTime(reader.GetOrdinal("DATE_CREATED")),
-                        LastPracticed = reader.IsDBNull(reader.GetOrdinal("C_LAST_PRACTICED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("C_LAST_PRACTICED")),
-                        ProgressPercent = reader.IsDBNull(reader.GetOrdinal("C_PROGRESS_PERCENT")) ? 0 : reader.GetFloat(reader.GetOrdinal("C_PROGRESS_PERCENT")),
                         Title = reader.GetString(reader.GetOrdinal("TITLE")),
-                        NumVerses = reader.IsDBNull(reader.GetOrdinal("NUM_VERSES")) ? 0 : reader.GetInt32(reader.GetOrdinal("NUM_VERSES")),
+                        //NumVerses = reader.IsDBNull(reader.GetOrdinal("NUM_VERSES")) ? 0 : reader.GetInt32(reader.GetOrdinal("NUM_VERSES")),
                         Visibility = reader.GetInt32(reader.GetOrdinal("VISIBILITY")),
                         IsPublished = reader.GetInt32(reader.GetOrdinal("IS_PUBLISHED")),
                         NumSaves = reader.GetInt32(reader.GetOrdinal("NUM_SAVES")),
-                        Pinned = reader.GetInt32(reader.GetOrdinal("PINNED")),
                         VerseOrder = reader.IsDBNull(reader.GetOrdinal("VERSE_ORDER")) ? string.Empty : reader.GetString(reader.GetOrdinal("VERSE_ORDER"))
                     };
                     collections.Add(newCollection);
@@ -498,14 +484,12 @@ namespace VerseAppAPI.Controllers
 
                     UserVerse userVerse = new UserVerse()
                     {
-                        VerseId = reader.GetInt32(reader.GetOrdinal("VERSE_ID")),
-                        UserId = reader.GetInt32(reader.GetOrdinal("USER_ID")),
-                        Reference = reader.GetString(reader.GetOrdinal("REFERENCE")),
+                        VerseId = reader.GetInt32(reader.GetOrdinal("USER_VERSE_ID")),
+                        UserId = reader.GetInt32(reader.GetOrdinal("USERNAME")),
+                        Reference = reader.GetString(reader.GetOrdinal("READABLE_REFERENCE")),
                         DateAdded = reader.GetDateTime(reader.GetOrdinal("DATE_SAVED")),
                         LastPracticed = reader.IsDBNull(reader.GetOrdinal("LAST_PRACTICED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("LAST_PRACTICED")),
-                        DateMemorized = reader.IsDBNull(reader.GetOrdinal("DATE_MEMORIZED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("DATE_MEMORIZED")),
                         ProgressPercent = reader.IsDBNull(reader.GetOrdinal("PROGRESS_PERCENT")) ? 0 : reader.GetFloat(reader.GetOrdinal("PROGRESS_PERCENT")),
-                        TimesReviewed = reader.IsDBNull(reader.GetOrdinal("TIMES_REVIEWED")) ? 0 : reader.GetInt32(reader.GetOrdinal("TIMES_REVIEWED")),
                         TimesMemorized = reader.IsDBNull(reader.GetOrdinal("TIMES_MEMORIZED")) ? 0 : reader.GetInt32(reader.GetOrdinal("TIMES_MEMORIZED")),
                     };
                     collection.UserVerses.Add(userVerse);
@@ -514,18 +498,6 @@ namespace VerseAppAPI.Controllers
             conn.Close();
             conn.Dispose();
             return collections;
-        }
-
-        public async Task TogglePinCollection(Collection collection)
-        {
-            string query = @"UPDATE COLLECTIONS SET PINNED = CASE WHEN PINNED = 1 THEN 0 ELSE 1 END WHERE COLLECTION_ID = :collectionId";
-            using OracleConnection conn = new OracleConnection(connectionString);
-            await conn.OpenAsync();
-            using OracleCommand cmd = new OracleCommand(query, conn);
-            cmd.Parameters.Add(new OracleParameter("collectionId", collection.Id));
-            await cmd.ExecuteNonQueryAsync();
-            conn.Close();
-            conn.Dispose();
         }
 
         public async Task DeleteCollection(int collectionId)
@@ -549,6 +521,7 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
         }
 
+        // Continue here
         public async Task<List<Verse>> GetVersesByReferences(List<string> references)
         {
             List<Verse> verses = new List<Verse>();
