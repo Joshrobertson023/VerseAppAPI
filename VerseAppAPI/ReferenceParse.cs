@@ -118,7 +118,7 @@ namespace VerseAppAPI
 
         public static List<string> GetIndividualVersesFromReference(string reference)
         {
-            // This function is causing the error with long functions
+            // This function is causing the error with long references
 
             List<string> references = new List<string>();
 

@@ -521,28 +521,31 @@ namespace VerseAppAPI.Controllers
             conn.Dispose();
         }
 
-        // Continue here
         public async Task<List<Verse>> GetVersesByReferences(List<string> references)
         {
             List<Verse> verses = new List<Verse>();
 
-            string inParams = string.Join(",", references.Select((r, i) => $":r{i}"));
+            List<string> parameters = new List<string>();
+            for (int referenceIndex = 0; referenceIndex < references.Count; referenceIndex++)
+            {
+                parameters.Add($":reference{referenceIndex}");
+            }
+            string referencesToFind = string.Join(", ", parameters);
 
-            string query = $@"
-                            SELECT verse_id,
+            string query = $@"SELECT verse_id,
                                    verse_reference,
                                    text,
                                    users_saved_verse,
                                    users_memorized
                               FROM verses
-                             WHERE verse_reference IN ({inParams})";
+                             WHERE verse_reference IN ({referencesToFind})";
 
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
-            for (int i = 0; i < references.Count; i++)
+            for (int referenceIndex = 0; referenceIndex < references.Count; referenceIndex++)
             {
-                cmd.Parameters.Add(new OracleParameter($"r{i}", references[i]));
+                cmd.Parameters.Add(new OracleParameter($"reference{referenceIndex}", references[referenceIndex]));
             }
             OracleDataReader reader = await cmd.ExecuteReaderAsync();
 
@@ -564,7 +567,7 @@ namespace VerseAppAPI.Controllers
             return verses;
         }
 
-        public async Task AddUserVersestonewcollection(List<UserVerse> userVerses)
+        public async Task AddUserVersesToNewCollection(List<UserVerse> userVerses)
         {
             int collectionId = await GetLatestCollectionId();
 
