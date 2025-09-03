@@ -485,8 +485,8 @@ namespace VerseAppAPI.Controllers
                     UserVerse userVerse = new UserVerse()
                     {
                         VerseId = reader.GetInt32(reader.GetOrdinal("USER_VERSE_ID")),
-                        UserId = reader.GetInt32(reader.GetOrdinal("USERNAME")),
-                        Reference = reader.GetString(reader.GetOrdinal("READABLE_REFERENCE")),
+                        Username = reader.GetInt32(reader.GetOrdinal("USERNAME")),
+                        ReadableReference = reader.GetString(reader.GetOrdinal("READABLE_REFERENCE")),
                         DateAdded = reader.GetDateTime(reader.GetOrdinal("DATE_SAVED")),
                         LastPracticed = reader.IsDBNull(reader.GetOrdinal("LAST_PRACTICED")) ? DateTime.MinValue : reader.GetDateTime(reader.GetOrdinal("LAST_PRACTICED")),
                         ProgressPercent = reader.IsDBNull(reader.GetOrdinal("PROGRESS_PERCENT")) ? 0 : reader.GetFloat(reader.GetOrdinal("PROGRESS_PERCENT")),
