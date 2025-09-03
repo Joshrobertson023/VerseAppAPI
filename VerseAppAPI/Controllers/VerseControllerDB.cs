@@ -581,8 +581,8 @@ namespace VerseAppAPI.Controllers
             }
             await SetVersesSaved(versesAdded);
 
-            string query = @"INSERT INTO USER_VERSES (USER_ID, REFERENCE, COLLECTION_ID, DATE_SAVED) 
-                             VALUES (:userId, :reference, :collectionId, SYSDATE)";
+            string query = @"INSERT INTO USER_VERSES (USERNAME, READABLE_REFERENCE, COLLECTION_ID, DATE_SAVED) 
+                             VALUES (:username, :reference, :collectionId, SYSDATE)";
             using OracleConnection conn = new OracleConnection(connectionString);
             await conn.OpenAsync();
             using OracleCommand cmd = new OracleCommand(query, conn);
@@ -591,8 +591,8 @@ namespace VerseAppAPI.Controllers
             {
                 cmd.Parameters.Clear();
                 cmd.Parameters.Add(new OracleParameter("collectionId", collectionId));
-                cmd.Parameters.Add(new OracleParameter("userId", userVerse.UserId));
-                cmd.Parameters.Add(new OracleParameter("reference", userVerse.Reference));
+                cmd.Parameters.Add(new OracleParameter("username", userVerse.Username));
+                cmd.Parameters.Add(new OracleParameter("reference", userVerse.ReadableReference));
                 await cmd.ExecuteNonQueryAsync();
             }
             conn.Close();

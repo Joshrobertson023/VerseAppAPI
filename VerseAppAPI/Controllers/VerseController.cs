@@ -148,26 +148,12 @@ namespace VerseAppAPI.Controllers
         {
             try
             {
-                await verseDB.AddUserVersestonewcollection(userVerses);
+                await verseDB.AddUserVersesToNewCollection(userVerses);
                 return NoContent();
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Failed to add user verses ", error = ex.Message });
-            }
-        }
-
-        [HttpPost("togglepincolllection")]
-        public async Task<IActionResult> TogglePinCollection([FromBody] Collection collection)
-        {
-            try
-            {
-                await verseDB.TogglePinCollection(collection);
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Failed to toggle pin collection ", error = ex.Message });
             }
         }
 
